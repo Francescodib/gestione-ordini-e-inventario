@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import dotenv from "dotenv";
-import jwt from "jsonwebtoken";
-import userRoutes from "./routes/userRoutes";
+import usersRoutes from "./routes/userRoutes";
+import { verifyToken } from "./middleware/auth";
 
 // Create Express app
 const app = express();
@@ -11,46 +11,40 @@ const PORT = process.env.PORT || 3000;
 
 // Load environment variables
 dotenv.config();
-console.log(process.env.PORT);
+
+// Middleware to log requests (remove in production)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
 
 // Middleware to parse JSON
 app.use(express.json());
 
-// Middleware to verify JWT (skip for auth routes)
-function verifyToken(req: Request, res: Response, next: NextFunction) {
-  // Skip authentication for login and register routes
-  if (req.path === '/api/users/login' || req.path === '/api/users/register') {
-    return next();
-  }
-  
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-  jwt.verify(token, process.env.JWT_SECRET!, (err, decoded) => {
-    if (err) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    req.user = decoded as jwt.JwtPayload;
-    next();
-  });
-}
+// Note: verifyToken middleware is now imported from ./middleware/auth
 
-// Apply authentication middleware
-app.use(verifyToken);
-
-// Simple route
+// Public routes (no authentication required)
 app.get("/", (req, res) => {
   res.send("Server Express attivo su rotta principale");
 });
 
-// Protected route
-app.get("/protected", (req, res) => {
+// User routes (some public, some protected)
+app.use("/api/users", usersRoutes);
+
+// Protected routes (require authentication) - apply middleware only to these specific routes
+app.get("/protected", verifyToken, (req, res) => {
   res.send("Server Express attivo su rotta protetta");
 });
 
-// User routes
-app.use("/api/users", userRoutes);
+// 404 route - must be after all other routes
+app.use((req, res) => {
+  res.status(404).json({ 
+    error: "Not Found",
+    message: `Route ${req.method} ${req.originalUrl} not found`,
+    timestamp: new Date().toISOString(),
+    path: req.originalUrl
+  });
+});
 
 // Start server
 app.listen(PORT, () => {

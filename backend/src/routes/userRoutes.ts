@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import { UserService } from '../services/userService';
+import { AuthService } from '../services/authService';
+import { verifyToken } from '../middleware/auth';
 import { CreateUserRequest, UpdateUserRequest, LoginRequest, UserResponse } from '../types/user';
 
 const router = express.Router();
@@ -23,18 +24,11 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     const newUser = await UserService.createUser(userData);
-    const token = jwt.sign(
-      { userId: newUser.id, email: newUser.email },
-      process.env.JWT_SECRET!,
-      { expiresIn: '24h' }
-    );
+    const authResponse = AuthService.createAuthResponse(newUser);
 
-    res.status(201).json({
-      token,
-      user: toUserResponse(newUser)
-    });
+    res.status(201).json(authResponse);
   } catch (error) {
-    res.status(500).json({ message: 'Error creating user', error: error.message });
+    res.status(500).json({ message: 'Error creating user', error: (error as Error).message });
   }
 });
 
@@ -53,34 +47,67 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET!,
-      { expiresIn: '24h' }
-    );
-
-    res.json({
-      token,
-      user: toUserResponse(user)
-    });
+    const authResponse = AuthService.createAuthResponse(user);
+    res.json(authResponse);
   } catch (error) {
-    res.status(500).json({ message: 'Error during login', error: error.message });
+    res.status(500).json({ message: 'Error during login', error: (error as Error).message });
+  }
+});
+
+// Note: verifyToken is already imported at the top
+
+// POST /api/users/refresh - Refresh JWT token
+router.post('/refresh', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ message: 'Token is required' });
+    }
+
+    const newToken = AuthService.refreshToken(token);
+    if (!newToken) {
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+
+    res.json({ token: newToken });
+  } catch (error) {
+    res.status(500).json({ message: 'Error refreshing token', error: (error as Error).message });
+  }
+});
+
+// GET /api/users/me - Get current user profile (protected)
+router.get('/me', verifyToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const user = await UserService.getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(toUserResponse(user));
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching user profile', error: (error as Error).message });
   }
 });
 
 // GET /api/users - Get all users (protected)
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', verifyToken, async (req: Request, res: Response) => {
   try {
     const users = await UserService.getAllUsers();
     const userResponses = users.map(toUserResponse);
     res.json(userResponses);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching users', error: error.message });
+    res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
   }
 });
 
 // GET /api/users/:id - Get user by ID (protected)
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', verifyToken, async (req: Request, res: Response) => {
   try {
     const user = await UserService.getUserById(req.params.id);
     if (!user) {
@@ -88,12 +115,12 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
     res.json(toUserResponse(user));
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching user', error: error.message });
+    res.status(500).json({ message: 'Error fetching user', error: (error as Error).message });
   }
 });
 
 // PUT /api/users/:id - Update user (protected)
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', verifyToken, async (req: Request, res: Response) => {
   try {
     const userData: UpdateUserRequest = req.body;
     const updatedUser = await UserService.updateUser(req.params.id, userData);
@@ -104,12 +131,12 @@ router.put('/:id', async (req: Request, res: Response) => {
     
     res.json(toUserResponse(updatedUser));
   } catch (error) {
-    res.status(500).json({ message: 'Error updating user', error: error.message });
+    res.status(500).json({ message: 'Error updating user', error: (error as Error).message });
   }
 });
 
 // DELETE /api/users/:id - Delete user (protected)
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', verifyToken, async (req: Request, res: Response) => {
   try {
     const deleted = await UserService.deleteUser(req.params.id);
     if (!deleted) {
@@ -118,7 +145,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Error deleting user', error: error.message });
+    res.status(500).json({ message: 'Error deleting user', error: (error as Error).message });
   }
 });
 
