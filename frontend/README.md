@@ -1,69 +1,113 @@
-# React + TypeScript + Vite
+# Frontend - Sistema di Gestione Ordini e Inventario
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Questo è il frontend dell'applicazione di gestione ordini e inventario, costruito con React, TypeScript e Tailwind CSS.
 
-Currently, two official plugins are available:
+## Funzionalità
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Registrazione utenti**: Creazione di nuovi account con ruoli (user/admin)
+- **Login**: Autenticazione degli utenti esistenti
+- **Dashboard protetta**: Pagina riservata agli utenti autenticati con dettagli del profilo
+- **Gestione stato**: Context API per la gestione dell'autenticazione
+- **Routing protetto**: Protezione delle rotte che richiedono autenticazione
 
-## Expanding the ESLint configuration
+## Tecnologie Utilizzate
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- React 19
+- TypeScript
+- React Router DOM
+- Axios per le chiamate API
+- Tailwind CSS per lo styling
+- Vite come build tool
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Struttura del Progetto
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+src/
+├── components/
+│   └── ProtectedRoute.tsx    # Componente per proteggere le rotte
+├── contexts/
+│   └── AuthContext.tsx       # Context per la gestione dell'autenticazione
+├── pages/
+│   ├── LoginPage.tsx         # Pagina di login
+│   ├── RegisterPage.tsx      # Pagina di registrazione
+│   └── DashboardPage.tsx     # Dashboard protetta
+├── services/
+│   └── api.ts               # Servizio per le chiamate API
+├── types/
+│   └── auth.ts              # Tipi TypeScript per l'autenticazione
+├── App.tsx                  # Componente principale con routing
+└── main.tsx                 # Entry point dell'applicazione
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Installazione e Avvio
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. Installa le dipendenze:
+```bash
+npm install
 ```
+
+2. Avvia il server di sviluppo:
+```bash
+npm run dev
+```
+
+3. L'applicazione sarà disponibile su `http://localhost:5173`
+
+## Configurazione
+
+L'applicazione si connette al backend su `http://localhost:3000`. Assicurati che il backend sia in esecuzione prima di utilizzare il frontend.
+
+## Utilizzo
+
+### Registrazione
+1. Vai su `/register`
+2. Compila il modulo con i tuoi dati
+3. Scegli il ruolo (Utente o Amministratore)
+4. Clicca su "Registrati"
+
+### Login
+1. Vai su `/login`
+2. Inserisci email e password
+3. Clicca su "Accedi"
+
+### Dashboard
+- Accessibile solo agli utenti autenticati
+- Mostra i dettagli del profilo utente
+- Include un pulsante per il logout
+- Contiene sezioni per future funzionalità (Ordini, Inventario)
+
+## API Endpoints Utilizzati
+
+- `POST /api/users/register` - Registrazione utente
+- `POST /api/users/login` - Login utente
+- `GET /api/users/me` - Recupero dettagli utente corrente
+- `POST /api/users/refresh` - Refresh del token
+
+## Sicurezza
+
+- I token JWT vengono salvati nel localStorage
+- Le richieste API includono automaticamente il token di autorizzazione
+- Le rotte protette reindirizzano al login se l'utente non è autenticato
+- Gestione automatica della scadenza dei token
+
+## Sviluppo
+
+### Aggiungere nuove pagine protette
+
+1. Crea il componente della pagina
+2. Aggiungi la rotta in `App.tsx` wrappata con `ProtectedRoute`
+3. Utilizza `useAuth()` per accedere ai dati dell'utente
+
+### Aggiungere nuove chiamate API
+
+1. Aggiungi la funzione in `services/api.ts`
+2. Utilizza il servizio nei componenti
+3. Gestisci gli errori appropriatamente
+
+## Build per Produzione
+
+```bash
+npm run build
+```
+
+I file di build saranno generati nella cartella `dist/`.
