@@ -3,80 +3,322 @@
  * Contiene tutte le interfacce e i tipi utilizzati nel sistema di autenticazione
  */
 
+import { Types } from 'mongoose';
+
 /**
- * Interfaccia principale per l'entità User
- * Rappresenta un utente completo nel sistema con tutti i campi
+ * Enum per i ruoli utente
+ */
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+  MANAGER = 'manager'
+}
+
+/**
+ * Interfaccia User per risposte API (senza dati sensibili)
  */
 export interface User {
-  id: string;                                    // ID univoco dell'utente
-  username: string;                              // Nome utente univoco
-  email: string;                                 // Email univoca dell'utente
-  password: string;                              // Password hashata (non in chiaro)
-  firstName: string;                             // Nome dell'utente
-  lastName: string;                              // Cognome dell'utente
-  role: 'admin' | 'user' | 'manager';           // Ruolo dell'utente nel sistema
-  isActive: boolean;                             // Stato attivo/disattivo dell'account
-  createdAt: Date;                               // Data e ora di creazione
-  updatedAt: Date;                               // Data e ora dell'ultimo aggiornamento
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  isActive: boolean;
+  emailVerified: boolean;
+  lastLogin?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
- * Interfaccia per la richiesta di creazione di un nuovo utente
- * Contiene tutti i campi obbligatori per la registrazione
+ * Interfaccia per la richiesta di creazione utente
  */
 export interface CreateUserRequest {
-  username: string;                              // Nome utente (obbligatorio)
-  email: string;                                 // Email (obbligatorio)
-  password: string;                              // Password in chiaro (obbligatorio)
-  firstName: string;                             // Nome (obbligatorio)
-  lastName: string;                              // Cognome (obbligatorio)
-  role?: 'admin' | 'user' | 'manager';          // Ruolo (opzionale, default: 'user')
+  username: string;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role?: UserRole;
 }
 
 /**
- * Interfaccia per la richiesta di aggiornamento di un utente esistente
- * Tutti i campi sono opzionali per permettere aggiornamenti parziali
+ * Interfaccia per la richiesta di aggiornamento utente
  */
 export interface UpdateUserRequest {
-  username?: string;                             // Nome utente (opzionale)
-  email?: string;                                // Email (opzionale)
-  firstName?: string;                            // Nome (opzionale)
-  lastName?: string;                             // Cognome (opzionale)
-  role?: 'admin' | 'user' | 'manager';          // Ruolo (opzionale)
-  isActive?: boolean;                            // Stato attivo (opzionale)
+  username?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  role?: UserRole;
+  isActive?: boolean;
 }
 
 /**
  * Interfaccia per la richiesta di login
- * Contiene le credenziali necessarie per l'autenticazione
  */
 export interface LoginRequest {
-  email: string;                                 // Email dell'utente
-  password: string;                              // Password in chiaro
+  email: string;
+  password: string;
 }
 
 /**
  * Interfaccia per la risposta di autenticazione
- * Contiene il token JWT e i dati utente (senza password)
  */
 export interface AuthResponse {
-  token: string;                                 // Token JWT per l'autenticazione
-  user: Omit<User, 'password'>;                 // Dati utente senza password
+  token: string;
+  user: User;
 }
 
 /**
  * Interfaccia per la risposta con dati utente
- * Versione "pulita" dell'utente senza password per le risposte API
- * Equivale a User ma senza il campo password
  */
 export interface UserResponse {
-  id: string;                                    // ID univoco dell'utente
-  username: string;                              // Nome utente
-  email: string;                                 // Email
-  firstName: string;                             // Nome
-  lastName: string;                              // Cognome
-  role: 'admin' | 'user' | 'manager';           // Ruolo
-  isActive: boolean;                             // Stato attivo
-  createdAt: Date;                               // Data di creazione
-  updatedAt: Date;                               // Data di aggiornamento
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  isActive: boolean;
+  emailVerified: boolean;
+  lastLogin?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ==========================================
+// TIPI PER I MODELLI DI BUSINESS
+// ==========================================
+
+/**
+ * Interfaccia Category per risposte API
+ */
+export interface Category {
+  id: string;
+  name: string;
+  description: string;
+  slug: string;
+  isActive: boolean;
+  parentId?: string;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Interfaccia Product per risposte API
+ */
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  sku: string;
+  barcode?: string;
+  categoryId: string;
+  price: number;
+  costPrice: number;
+  stock: number;
+  minStock: number;
+  maxStock?: number;
+  weight?: number;
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+  };
+  images: string[];
+  tags: string[];
+  status: 'active' | 'inactive' | 'discontinued' | 'out_of_stock';
+  supplier?: {
+    name: string;
+    email: string;
+    phone?: string;
+  };
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Interfaccia OrderItem
+ */
+export interface OrderItem {
+  productId: string;
+  name: string;
+  sku: string;
+  quantity: number;
+  price: number;
+  totalPrice: number;
+}
+
+/**
+ * Interfaccia ShippingAddress
+ */
+export interface ShippingAddress {
+  firstName: string;
+  lastName: string;
+  company?: string;
+  address1: string;
+  address2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  phone?: string;
+}
+
+/**
+ * Interfaccia Order per risposte API
+ */
+export interface Order {
+  id: string;
+  orderNumber: string;
+  userId: string;
+  items: OrderItem[];
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
+  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded' | 'partially_refunded';
+  subtotal: number;
+  shippingCost: number;
+  taxAmount: number;
+  discountAmount: number;
+  totalAmount: number;
+  currency: string;
+  shippingAddress: ShippingAddress;
+  billingAddress?: ShippingAddress;
+  notes?: string;
+  trackingNumber?: string;
+  shippedAt?: Date;
+  deliveredAt?: Date;
+  cancelledAt?: Date;
+  cancelReason?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ==========================================
+// REQUEST TYPES PER CRUD OPERATIONS
+// ==========================================
+
+export interface CreateCategoryRequest {
+  name: string;
+  description: string;
+  parentId?: string;
+  sortOrder?: number;
+}
+
+export interface UpdateCategoryRequest {
+  name?: string;
+  description?: string;
+  parentId?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface CreateProductRequest {
+  name: string;
+  description: string;
+  sku: string;
+  barcode?: string;
+  categoryId: string;
+  price: number;
+  costPrice: number;
+  stock: number;
+  minStock: number;
+  maxStock?: number;
+  weight?: number;
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+  };
+  images?: string[];
+  tags?: string[];
+  supplier?: {
+    name: string;
+    email: string;
+    phone?: string;
+  };
+}
+
+export interface UpdateProductRequest {
+  name?: string;
+  description?: string;
+  sku?: string;
+  barcode?: string;
+  categoryId?: string;
+  price?: number;
+  costPrice?: number;
+  stock?: number;
+  minStock?: number;
+  maxStock?: number;
+  weight?: number;
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+  };
+  images?: string[];
+  tags?: string[];
+  supplier?: {
+    name: string;
+    email: string;
+    phone?: string;
+  };
+  status?: 'active' | 'inactive' | 'discontinued' | 'out_of_stock';
+  isActive?: boolean;
+}
+
+export interface CreateOrderRequest {
+  items: {
+    productId: string;
+    quantity: number;
+  }[];
+  shippingAddress: ShippingAddress;
+  billingAddress?: ShippingAddress;
+  notes?: string;
+  shippingCost?: number;
+  taxAmount?: number;
+  discountAmount?: number;
+}
+
+export interface UpdateOrderRequest {
+  status?: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
+  paymentStatus?: 'pending' | 'paid' | 'failed' | 'refunded' | 'partially_refunded';
+  trackingNumber?: string;
+  notes?: string;
+  cancelReason?: string;
+}
+
+// ==========================================
+// RESPONSE TYPES PER API
+// ==========================================
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+  timestamp: string;
+}
+
+export interface ErrorResponse {
+  success: false;
+  error: string;
+  message: string;
+  details?: string[];
+  timestamp: string;
 }

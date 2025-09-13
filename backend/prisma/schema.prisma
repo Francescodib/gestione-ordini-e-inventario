@@ -1,0 +1,161 @@
+// File: prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      UserRole @default(USER)
+  isActive  Boolean  @default(true)
+  emailVerified Boolean @default(false)
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  orders Order[]
+
+  @@map("users")
+}
+
+// Category model
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  slug        String   @unique
+  isActive    Boolean  @default(true)
+  parentId    String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+
+  @@map("categories")
+}
+
+// Product model
+model Product {
+  id          String        @id @default(cuid())
+  name        String
+  description String
+  sku         String        @unique
+  barcode     String?
+  categoryId  String
+  price       Float
+  costPrice   Float
+  stock       Int           @default(0)
+  minStock    Int           @default(0)
+  maxStock    Int?
+  weight      Float?
+  images      String?       // JSON string array
+  tags        String?       // JSON string array
+  status      ProductStatus @default(ACTIVE)
+  supplier    String?       // JSON object
+  dimensions  String?       // JSON object
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  category   Category    @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+
+  @@map("products")
+}
+
+// Order model
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique
+  userId          String
+  status          OrderStatus   @default(PENDING)
+  paymentStatus   PaymentStatus @default(PENDING)
+  subtotal        Float
+  shippingCost    Float         @default(0)
+  taxAmount       Float         @default(0)
+  discountAmount  Float         @default(0)
+  totalAmount     Float
+  currency        String        @default("EUR")
+  shippingAddress String        // JSON object
+  billingAddress  String?       // JSON object
+  notes           String?
+  trackingNumber  String?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  user  User        @relation(fields: [userId], references: [id])
+  items OrderItem[]
+
+  @@map("orders")
+}
+
+// OrderItem model (junction table)
+model OrderItem {
+  id         String @id @default(cuid())
+  orderId    String
+  productId  String
+  name       String // Product name at time of order
+  sku        String // Product SKU at time of order
+  quantity   Int
+  price      Float  // Price at time of order
+  totalPrice Float  // quantity * price
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+// Enums
+enum UserRole {
+  USER
+  ADMIN
+  MANAGER
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  DISCONTINUED
+  OUT_OF_STOCK
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}

@@ -5,7 +5,7 @@ import rateLimit, { RateLimitRequestHandler } from "express-rate-limit";
 import helmet, { HelmetOptions } from "helmet";
 
 export const corsOptions: CorsOptions = {
-  origin: "*",
+  origin: "*", // specificare domini autorizzati
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Authorization", "Content-Type"],
 };

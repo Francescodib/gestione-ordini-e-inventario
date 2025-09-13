@@ -1,7 +1,6 @@
 /**
- * Router per la gestione delle rotte degli utenti
- * Definisce tutti gli endpoint per l'autenticazione e la gestione degli utenti
- * Include rotte pubbliche (registrazione, login) e protette (CRUD utenti)
+ * Router per la gestione delle rotte degli utenti - Versione MongoDB
+ * Aggiornato per utilizzare MongoDB con Mongoose
  */
 
 import express, { Request, Response } from 'express';
@@ -13,18 +12,6 @@ import { CreateUserRequest, UpdateUserRequest, LoginRequest, UserResponse } from
 // Inizializzazione del router Express
 const router = express.Router();
 
-/**
- * Funzione helper per convertire un oggetto User in UserResponse
- * Rimuove la password dai dati utente prima di inviarli al client
- * 
- * @param user - Oggetto User completo
- * @returns Oggetto UserResponse senza password
- */
-const toUserResponse = (user: any): UserResponse => {
-  const { password, ...userResponse } = user;
-  return userResponse;
-};
-
 // ==========================================
 // ROTTE PUBBLICHE (senza autenticazione)
 // ==========================================
@@ -32,80 +19,162 @@ const toUserResponse = (user: any): UserResponse => {
 /**
  * POST /api/users/register
  * Registrazione di un nuovo utente
- * ROTTA PUBBLICA - Non richiede autenticazione
  */
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const userData: CreateUserRequest = req.body;
     
-    // Verifica se l'utente esiste già con questa email
+    // Validazione input base
+    if (!userData.email || !userData.password || !userData.firstName || !userData.lastName) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Missing required fields: email, password, firstName, lastName' 
+      });
+    }
+
+    if (userData.password.length < 6) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Password must be at least 6 characters long' 
+      });
+    }
+
+    // Verifica se l'utente esiste già
     const existingUser = await UserService.getUserByEmail(userData.email);
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists with this email' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'User already exists with this email' 
+      });
+    }
+
+    // Se username non fornito, genera da email
+    if (!userData.username) {
+      userData.username = userData.email.split('@')[0];
+    }
+
+    // Verifica se username esiste già
+    const existingUsername = await UserService.getUserByUsername(userData.username);
+    if (existingUsername) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Username already exists' 
+      });
     }
 
     // Creazione del nuovo utente
     const newUser = await UserService.createUser(userData);
-    // Generazione della risposta di autenticazione con token
-    const authResponse = AuthService.createAuthResponse(newUser);
+    
+    // Conversione per risposta (rimuove dati sensibili)
+    const userForToken = {
+      id: newUser._id.toString(),
+      email: newUser.email,
+      role: newUser.role
+    };
 
-    res.status(201).json(authResponse);
-  } catch (error) {
-    res.status(500).json({ message: 'Error creating user', error: (error as Error).message });
+    // Generazione della risposta di autenticazione con token
+    const authResponse = AuthService.createAuthResponse(userForToken as any);
+
+    res.status(201).json({
+      success: true,
+      ...authResponse,
+      message: 'User registered successfully'
+    });
+  } catch (error: any) {
+    console.error('Registration error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error creating user', 
+      error: error.message 
+    });
   }
 });
 
 /**
  * POST /api/users/login
  * Login di un utente esistente
- * ROTTA PUBBLICA - Non richiede autenticazione
  */
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password }: LoginRequest = req.body;
     
-    // Ricerca dell'utente per email
-    const user = await UserService.getUserByEmail(email);
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    // Validazione input
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email and password are required' 
+      });
     }
 
-    // Verifica della password
-    const isValidPassword = await UserService.verifyPassword(user, password);
-    if (!isValidPassword) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    // Autenticazione dell'utente
+    const user = await UserService.authenticateUser(email, password);
+    if (!user) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid credentials' 
+      });
     }
+
+    // Conversione per token
+    const userForToken = {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role
+    };
 
     // Generazione della risposta di autenticazione
-    const authResponse = AuthService.createAuthResponse(user);
-    res.json(authResponse);
-  } catch (error) {
-    res.status(500).json({ message: 'Error during login', error: (error as Error).message });
+    const authResponse = AuthService.createAuthResponse(userForToken as any);
+    
+    res.json({
+      success: true,
+      ...authResponse,
+      message: 'Login successful'
+    });
+  } catch (error: any) {
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error during login', 
+      error: error.message 
+    });
   }
 });
 
 /**
  * POST /api/users/refresh
  * Rinnovo del token JWT
- * ROTTA PUBBLICA - Richiede solo il token da rinnovare
  */
 router.post('/refresh', async (req: Request, res: Response) => {
   try {
     const { token } = req.body;
     
     if (!token) {
-      return res.status(400).json({ message: 'Token is required' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Token is required' 
+      });
     }
 
     // Tentativo di rinnovo del token
     const newToken = AuthService.refreshToken(token);
     if (!newToken) {
-      return res.status(401).json({ message: 'Invalid or expired token' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid or expired token' 
+      });
     }
 
-    res.json({ token: newToken });
-  } catch (error) {
-    res.status(500).json({ message: 'Error refreshing token', error: (error as Error).message });
+    res.json({ 
+      success: true,
+      token: newToken,
+      message: 'Token refreshed successfully'
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Error refreshing token', 
+      error: error.message 
+    });
   }
 });
 
@@ -116,96 +185,299 @@ router.post('/refresh', async (req: Request, res: Response) => {
 /**
  * GET /api/users/me
  * Recupero del profilo dell'utente corrente
- * ROTTA PROTETTA - Richiede token JWT valido
  */
 router.get('/me', verifyToken, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
-      return res.status(401).json({ message: 'User not authenticated' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'User not authenticated' 
+      });
     }
 
     // Recupero dei dati utente dal database
     const user = await UserService.getUserById(userId);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
 
-    // Invio della risposta senza password
-    res.json(toUserResponse(user));
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching user profile', error: (error as Error).message });
+    // Conversione per risposta
+    const userResponse: UserResponse = {
+      id: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+      emailVerified: user.emailVerified,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
+
+    res.json({
+      success: true,
+      data: userResponse
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching user profile', 
+      error: error.message 
+    });
   }
 });
 
 /**
  * GET /api/users
- * Recupero di tutti gli utenti
- * ROTTA PROTETTA - Richiede token JWT valido
+ * Recupero di tutti gli utenti (con paginazione opzionale)
  */
 router.get('/', verifyToken, async (req: Request, res: Response) => {
   try {
-    const users = await UserService.getAllUsers();
-    // Rimozione delle password da tutti gli utenti
-    const userResponses = users.map(toUserResponse);
-    res.json(userResponses);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
+    const { page = 1, limit = 10, role, active } = req.query;
+    
+    // Per ora implementazione semplice, in seguito aggiungeremo paginazione
+    let users;
+    
+    if (role) {
+      users = await UserService.getUsersByRole(role as any);
+    } else {
+      const includeInactive = active === 'false' ? true : false;
+      users = await UserService.getAllUsers(!includeInactive);
+    }
+
+    // Conversione per risposta
+    const userResponses = users.map(user => ({
+      id: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+      emailVerified: user.emailVerified,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    }));
+
+    res.json({
+      success: true,
+      data: userResponses,
+      count: userResponses.length
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching users', 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/users/search
+ * Ricerca utenti per nome o email
+ */
+router.get('/search', verifyToken, async (req: Request, res: Response) => {
+  try {
+    const { q } = req.query;
+    
+    if (!q || typeof q !== 'string') {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Search query parameter "q" is required' 
+      });
+    }
+
+    const users = await UserService.searchUsers(q);
+    
+    const userResponses = users.map(user => ({
+      id: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+      emailVerified: user.emailVerified,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    }));
+
+    res.json({
+      success: true,
+      data: userResponses,
+      count: userResponses.length
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Error searching users', 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/users/stats
+ * Statistiche degli utenti
+ */
+router.get('/stats', verifyToken, async (req: Request, res: Response) => {
+  try {
+    const stats = await UserService.getUserStats();
+    
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching user stats', 
+      error: error.message 
+    });
   }
 });
 
 /**
  * GET /api/users/:id
  * Recupero di un utente specifico per ID
- * ROTTA PROTETTA - Richiede token JWT valido
  */
 router.get('/:id', verifyToken, async (req: Request, res: Response) => {
   try {
     const user = await UserService.getUserById(req.params.id);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
-    res.json(toUserResponse(user));
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching user', error: (error as Error).message });
+
+    const userResponse: UserResponse = {
+      id: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+      emailVerified: user.emailVerified,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
+
+    res.json({
+      success: true,
+      data: userResponse
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching user', 
+      error: error.message 
+    });
   }
 });
 
 /**
  * PUT /api/users/:id
  * Aggiornamento di un utente esistente
- * ROTTA PROTETTA - Richiede token JWT valido
  */
 router.put('/:id', verifyToken, async (req: Request, res: Response) => {
   try {
     const userData: UpdateUserRequest = req.body;
+    
+    // Verifica conflitti email/username
+    if (userData.email || userData.username) {
+      const conflicts = await UserService.checkUserExists(
+        userData.email, 
+        userData.username, 
+        req.params.id
+      );
+      
+      if (conflicts.emailExists) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Email already exists' 
+        });
+      }
+      
+      if (conflicts.usernameExists) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Username already exists' 
+        });
+      }
+    }
+
     const updatedUser = await UserService.updateUser(req.params.id, userData);
     
     if (!updatedUser) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
     
-    res.json(toUserResponse(updatedUser));
-  } catch (error) {
-    res.status(500).json({ message: 'Error updating user', error: (error as Error).message });
+    const userResponse: UserResponse = {
+      id: updatedUser._id.toString(),
+      username: updatedUser.username,
+      email: updatedUser.email,
+      firstName: updatedUser.firstName,
+      lastName: updatedUser.lastName,
+      role: updatedUser.role,
+      isActive: updatedUser.isActive,
+      emailVerified: updatedUser.emailVerified,
+      lastLogin: updatedUser.lastLogin,
+      createdAt: updatedUser.createdAt,
+      updatedAt: updatedUser.updatedAt
+    };
+
+    res.json({
+      success: true,
+      data: userResponse,
+      message: 'User updated successfully'
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Error updating user', 
+      error: error.message 
+    });
   }
 });
 
 /**
  * DELETE /api/users/:id
- * Eliminazione di un utente
- * ROTTA PROTETTA - Richiede token JWT valido
+ * Eliminazione di un utente (soft delete)
  */
 router.delete('/:id', verifyToken, async (req: Request, res: Response) => {
   try {
     const deleted = await UserService.deleteUser(req.params.id);
     if (!deleted) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
     
-    res.json({ message: 'User deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error deleting user', error: (error as Error).message });
+    res.json({ 
+      success: true,
+      message: 'User deactivated successfully' 
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Error deleting user', 
+      error: error.message 
+    });
   }
 });
 
