@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import ErrorMessage from '../components/ErrorMessage';
+import { validateRegistrationForm } from '../utils/validation';
 
 const RegisterPage: React.FC = () => {
   const [formData, setFormData] = useState({
-    name: '',
+    username: '',
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'user' as 'user' | 'admin'
+    role: 'USER' as 'USER' | 'ADMIN' | 'MANAGER'
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,10 +20,28 @@ const RegisterPage: React.FC = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  // Genera username automaticamente dall'email
+  const generateUsername = (email: string) => {
+    const baseUsername = email.split('@')[0].toLowerCase();
+    // Rimuovi caratteri speciali e sostituisci con underscore
+    return baseUsername.replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
+    const { name, value } = e.target;
+
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [name]: value
+      };
+
+      // Auto-genera username quando cambia l'email, solo se username è vuoto o generato automaticamente
+      if (name === 'email' && value && (!prev.username || prev.username === generateUsername(prev.email))) {
+        updated.username = generateUsername(value);
+      }
+
+      return updated;
     });
   };
 
@@ -28,23 +49,25 @@ const RegisterPage: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    if (formData.password !== formData.confirmPassword) {
-      setError('Le password non coincidono');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError('La password deve essere di almeno 6 caratteri');
+    // Validate form data
+    const validation = validateRegistrationForm(formData);
+    if (!validation.isValid) {
+      setError(validation.errors[0].message);
       return;
     }
 
     setLoading(true);
 
     try {
-      await register(formData.name, formData.email, formData.password, formData.role);
+      await register(formData.username, formData.firstName, formData.lastName, formData.email, formData.password, formData.role);
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Errore durante la registrazione');
+      console.error('Registration error details:', err.response?.data);
+      if (err.response?.data?.errors && err.response.data.errors.length > 0) {
+        setError(err.response.data.errors.map((e: any) => e.message).join(', '));
+      } else {
+        setError(err.response?.data?.message || 'Errore durante la registrazione');
+      }
     } finally {
       setLoading(false);
     }
@@ -69,20 +92,37 @@ const RegisterPage: React.FC = () => {
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Nome completo
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Nome completo"
-                value={formData.name}
-                onChange={handleChange}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
+                  Nome
+                </label>
+                <input
+                  id="firstName"
+                  name="firstName"
+                  type="text"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Nome"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                />
+              </div>
+              <div>
+                <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
+                  Cognome
+                </label>
+                <input
+                  id="lastName"
+                  name="lastName"
+                  type="text"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Cognome"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                />
+              </div>
             </div>
             
             <div>
@@ -103,6 +143,26 @@ const RegisterPage: React.FC = () => {
             </div>
 
             <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                Nome utente
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                placeholder="Nome utente"
+                value={formData.username}
+                onChange={handleChange}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Verrà generato automaticamente dall'email, ma puoi modificarlo
+              </p>
+            </div>
+
+            <div>
               <label htmlFor="role" className="block text-sm font-medium text-gray-700">
                 Ruolo
               </label>
@@ -113,8 +173,9 @@ const RegisterPage: React.FC = () => {
                 value={formData.role}
                 onChange={handleChange}
               >
-                <option value="user">Utente</option>
-                <option value="admin">Amministratore</option>
+                <option value="USER">Utente</option>
+                <option value="MANAGER">Manager</option>
+                <option value="ADMIN">Amministratore</option>
               </select>
             </div>
             
@@ -129,10 +190,13 @@ const RegisterPage: React.FC = () => {
                 autoComplete="new-password"
                 required
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Password (min. 6 caratteri)"
+                placeholder="Password123!"
                 value={formData.password}
                 onChange={handleChange}
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Minimo 8 caratteri, deve contenere maiuscole, minuscole e numeri
+              </p>
             </div>
             
             <div>

@@ -148,4 +148,5 @@ async function testDatabase() {
 }
 
 /**
- *
+ * Main execution
+ */

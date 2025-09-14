@@ -1,10 +1,16 @@
 export interface User {
   id: string;
-  name: string;
+  username: string;
   email: string;
-  role: 'user' | 'admin';
-  createdAt: string;
-  updatedAt: string;
+  firstName: string;
+  lastName: string;
+  role: 'USER' | 'ADMIN' | 'MANAGER';
+  isActive: boolean;
+  emailVerified: boolean;
+  lastLogin?: Date | string;
+  avatar?: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
 export interface LoginRequest {
@@ -13,22 +19,28 @@ export interface LoginRequest {
 }
 
 export interface RegisterRequest {
-  name: string;
+  username: string;
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
-  role: 'user' | 'admin';
+  confirmPassword: string;
+  role?: 'USER' | 'ADMIN' | 'MANAGER';
 }
 
 export interface AuthResponse {
+  success: boolean;
   token: string;
   user: User;
+  expiresAt?: Date | string;
+  message?: string;
 }
 
 export interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, role: 'user' | 'admin') => Promise<void>;
+  register: (username: string, firstName: string, lastName: string, email: string, password: string, role?: 'USER' | 'ADMIN' | 'MANAGER') => Promise<void>;
   logout: () => void;
   loading: boolean;
 }

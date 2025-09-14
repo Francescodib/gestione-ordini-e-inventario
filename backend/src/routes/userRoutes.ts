@@ -1,13 +1,29 @@
 /**
- * Router per la gestione delle rotte degli utenti - Versione MongoDB
- * Aggiornato per utilizzare MongoDB con Mongoose
+ * Router per la gestione delle rotte degli utenti
+ * Sistema di gestione utenti con Prisma e SQLite
  */
 
 import express, { Request, Response } from 'express';
 import { UserService } from '../services/userService';
 import { AuthService } from '../services/authService';
 import { verifyToken } from '../middleware/auth';
-import { CreateUserRequest, UpdateUserRequest, LoginRequest, UserResponse } from '../types/user';
+import { CreateUserRequest, UpdateUserRequest, LoginRequest, UserResponse } from '../types/auth';
+import { logger } from '../config/logger';
+import { 
+  validateBody, 
+  validateQuery, 
+  validateId,
+  sanitizeInput,
+  validateContentType,
+  handleValidationErrors
+} from "../middleware/validation";
+import {
+  createUserSchema,
+  loginUserSchema,
+  updateUserSchema,
+  changePasswordSchema,
+  paginationSchema
+} from "../validation/schemas";
 
 // Inizializzazione del router Express
 const router = express.Router();
@@ -20,7 +36,11 @@ const router = express.Router();
  * POST /api/users/register
  * Registrazione di un nuovo utente
  */
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', 
+  sanitizeInput(),
+  validateContentType(),
+  validateBody(createUserSchema),
+  async (req: Request, res: Response) => {
   try {
     const userData: CreateUserRequest = req.body;
     
@@ -67,9 +87,17 @@ router.post('/register', async (req: Request, res: Response) => {
     
     // Conversione per risposta (rimuove dati sensibili)
     const userForToken = {
-      id: newUser._id.toString(),
+      id: newUser.id,
+      username: newUser.username,
       email: newUser.email,
-      role: newUser.role
+      firstName: newUser.firstName,
+      lastName: newUser.lastName,
+      role: newUser.role,
+      isActive: newUser.isActive,
+      emailVerified: newUser.emailVerified,
+      lastLogin: newUser.lastLogin,
+      createdAt: newUser.createdAt,
+      updatedAt: newUser.updatedAt
     };
 
     // Generazione della risposta di autenticazione con token
@@ -94,7 +122,11 @@ router.post('/register', async (req: Request, res: Response) => {
  * POST /api/users/login
  * Login di un utente esistente
  */
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', 
+  sanitizeInput(),
+  validateContentType(),
+  validateBody(loginUserSchema),
+  async (req: Request, res: Response) => {
   try {
     const { email, password }: LoginRequest = req.body;
     
@@ -117,13 +149,24 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Conversione per token
     const userForToken = {
-      id: user._id.toString(),
+      id: user.id,
+      username: user.username,
       email: user.email,
-      role: user.role
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+      emailVerified: user.emailVerified,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
     };
 
     // Generazione della risposta di autenticazione
     const authResponse = AuthService.createAuthResponse(userForToken as any);
+    
+    // Log successful login
+    logger.info('User login successful', { userId: user.id, ip: req.ip });
     
     res.json({
       success: true,
@@ -131,7 +174,11 @@ router.post('/login', async (req: Request, res: Response) => {
       message: 'Login successful'
     });
   } catch (error: any) {
-    console.error('Login error:', error);
+    logger.error('Login error:', error);
+    
+    // Log failed login attempt
+    logger.warn('User login failed', { email: req.body?.email || 'unknown', ip: req.ip });
+    
     res.status(500).json({ 
       success: false,
       message: 'Error during login', 
@@ -147,33 +194,85 @@ router.post('/login', async (req: Request, res: Response) => {
 router.post('/refresh', async (req: Request, res: Response) => {
   try {
     const { token } = req.body;
-    
+
     if (!token) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Token is required' 
+        message: 'Token is required'
       });
     }
 
     // Tentativo di rinnovo del token
     const newToken = AuthService.refreshToken(token);
     if (!newToken) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        message: 'Invalid or expired token' 
+        message: 'Invalid or expired token'
       });
     }
 
-    res.json({ 
+    res.json({
       success: true,
       token: newToken,
       message: 'Token refreshed successfully'
     });
   } catch (error: any) {
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Error refreshing token', 
-      error: error.message 
+      message: 'Error refreshing token',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/users/reset-password
+ * Richiesta reset password (invio email)
+ */
+router.post('/reset-password', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    // Verifica se l'utente esiste
+    const user = await UserService.getUserByEmail(email);
+    if (!user) {
+      // Per sicurezza, non rivelare se l'email esiste o meno
+      return res.json({
+        success: true,
+        message: 'If the email exists in our system, a password reset link will be sent.'
+      });
+    }
+
+    // TODO: In una implementazione reale, qui dovresti:
+    // 1. Generare un token temporaneo per il reset
+    // 2. Salvarlo nel database con una scadenza
+    // 3. Inviare una email all'utente con il link di reset
+    //
+    // Per ora simuliamo l'invio
+    logger.info('Password reset requested', {
+      userId: user.id,
+      email: user.email,
+      ip: req.ip
+    });
+
+    res.json({
+      success: true,
+      message: 'Password reset email sent successfully'
+    });
+  } catch (error: any) {
+    logger.error('Password reset error:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Error processing password reset request',
+      error: error.message
     });
   }
 });
@@ -207,7 +306,7 @@ router.get('/me', verifyToken, async (req: Request, res: Response) => {
 
     // Conversione per risposta
     const userResponse: UserResponse = {
-      id: user._id.toString(),
+      id: user.id,
       username: user.username,
       email: user.email,
       firstName: user.firstName,
@@ -237,7 +336,10 @@ router.get('/me', verifyToken, async (req: Request, res: Response) => {
  * GET /api/users
  * Recupero di tutti gli utenti (con paginazione opzionale)
  */
-router.get('/', verifyToken, async (req: Request, res: Response) => {
+router.get('/', 
+  verifyToken,
+  validateQuery(paginationSchema, { allowUnknown: true }),
+  async (req: Request, res: Response) => {
   try {
     const { page = 1, limit = 10, role, active } = req.query;
     
@@ -253,7 +355,7 @@ router.get('/', verifyToken, async (req: Request, res: Response) => {
 
     // Conversione per risposta
     const userResponses = users.map(user => ({
-      id: user._id.toString(),
+      id: user.id,
       username: user.username,
       email: user.email,
       firstName: user.firstName,
@@ -298,7 +400,7 @@ router.get('/search', verifyToken, async (req: Request, res: Response) => {
     const users = await UserService.searchUsers(q);
     
     const userResponses = users.map(user => ({
-      id: user._id.toString(),
+      id: user.id,
       username: user.username,
       email: user.email,
       firstName: user.firstName,
@@ -349,7 +451,10 @@ router.get('/stats', verifyToken, async (req: Request, res: Response) => {
  * GET /api/users/:id
  * Recupero di un utente specifico per ID
  */
-router.get('/:id', verifyToken, async (req: Request, res: Response) => {
+router.get('/:id', 
+  verifyToken,
+  validateId(),
+  async (req: Request, res: Response) => {
   try {
     const user = await UserService.getUserById(req.params.id);
     if (!user) {
@@ -360,7 +465,7 @@ router.get('/:id', verifyToken, async (req: Request, res: Response) => {
     }
 
     const userResponse: UserResponse = {
-      id: user._id.toString(),
+      id: user.id,
       username: user.username,
       email: user.email,
       firstName: user.firstName,
@@ -390,7 +495,13 @@ router.get('/:id', verifyToken, async (req: Request, res: Response) => {
  * PUT /api/users/:id
  * Aggiornamento di un utente esistente
  */
-router.put('/:id', verifyToken, async (req: Request, res: Response) => {
+router.put('/:id', 
+  verifyToken,
+  validateId(),
+  sanitizeInput(),
+  validateContentType(),
+  validateBody(updateUserSchema),
+  async (req: Request, res: Response) => {
   try {
     const userData: UpdateUserRequest = req.body;
     
@@ -427,7 +538,7 @@ router.put('/:id', verifyToken, async (req: Request, res: Response) => {
     }
     
     const userResponse: UserResponse = {
-      id: updatedUser._id.toString(),
+      id: updatedUser.id,
       username: updatedUser.username,
       email: updatedUser.email,
       firstName: updatedUser.firstName,
@@ -480,5 +591,8 @@ router.delete('/:id', verifyToken, async (req: Request, res: Response) => {
     });
   }
 });
+
+// Middleware di gestione errori di validazione
+router.use(handleValidationErrors());
 
 export default router;

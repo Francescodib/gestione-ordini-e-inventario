@@ -4,7 +4,7 @@
  */
 
 import jwt from 'jsonwebtoken';
-import { User } from '../types/user';
+import { User } from '../types/auth';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -26,8 +26,11 @@ export interface TokenPayload {
  * Contiene il token JWT e i dati utente (senza password)
  */
 export interface AuthResponse {
+  success: boolean;
   token: string;                    // Token JWT per l'autenticazione
   user: Omit<User, 'password'>;    // Dati utente senza password
+  expiresAt?: Date;
+  message?: string;
 }
 
 /**
@@ -78,7 +81,7 @@ export class AuthService {
   /**
    * Crea una risposta di autenticazione completa
    * Include il token JWT e i dati utente (senza password)
-   * 
+   *
    * @param user - Oggetto utente completo
    * @returns Risposta di autenticazione con token e dati utente
    */
@@ -86,10 +89,16 @@ export class AuthService {
     const token = this.generateToken(user);
     // Rimozione della password dai dati utente per la risposta
     const { password, ...userWithoutPassword } = user;
-    
+
+    // Calcolo della data di scadenza (24 ore da ora)
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
     return {
+      success: true,
       token,
-      user: userWithoutPassword
+      user: userWithoutPassword,
+      expiresAt
     };
   }
 

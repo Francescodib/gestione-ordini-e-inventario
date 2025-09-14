@@ -1,5 +1,5 @@
 /**
- * Server principale dell'applicazione Express con MongoDB
+ * Server principale dell'applicazione Express con Prisma + SQLite
  * Configura il server HTTP, database, middleware e rotte per la gestione ordini e inventario
  */
 
@@ -10,21 +10,50 @@ import helmet from "helmet";
 import morgan from "morgan";
 import compression from "compression";
 
+// Logging
+import { logger, morganStream } from "./config/logger";
+import {
+  requestIdMiddleware,
+  requestLoggingMiddleware,
+  responseLoggingMiddleware,
+  errorLoggingMiddleware,
+  securityLoggingMiddleware,
+  userActivityLoggingMiddleware,
+  healthCheckLoggingMiddleware
+} from "./middleware/logging";
+
 // Database
-import { connectDatabase } from "./config/database";
+import { connectDatabase, checkDatabaseHealth, disconnectDatabase } from "./config/database";
 
 // Routes
 import usersRoutes from "./routes/userRoutes";
+import productRoutes from "./routes/productRoutes";
+import categoryRoutes from "./routes/categoryRoutes";
+import orderRoutes from "./routes/orderRoutes";
+import searchRoutes from "./routes/searchRoutes";
+import fileRoutes from "./routes/fileRoutes";
+import backupRoutes from "./routes/backupRoutes";
+import monitoringRoutes, { setMonitoringServices } from "./routes/monitoringRoutes";
 
 // Middleware
 import { verifyToken } from "./middleware/auth";
 import { corsOptions, rateLimitMiddleware, helmetConfig } from "./config/security";
 
-// Models (importa tutti i modelli per registrarli)
-import "./models/User";
-import "./models/Category";
-import "./models/Product";
-import "./models/Order";
+// Backup System
+import { BackupScheduler } from "./services/backupScheduler";
+import { backupConfig } from "./config/backup";
+
+// Monitoring System
+import { 
+  initializeMetricsRegistry, 
+  createCustomMetrics, 
+  monitoringConfig 
+} from "./config/monitoring";
+import { SystemMonitoringService } from "./services/systemMonitoringService";
+import { AlertService } from "./services/alertService";
+import { MonitoringScheduler } from "./services/monitoringScheduler";
+
+// Prisma models are auto-generated and imported through @prisma/client
 
 // Caricamento delle variabili d'ambiente dal file .env
 dotenv.config();
@@ -33,18 +62,18 @@ dotenv.config();
 const app = express();
 
 // Configurazione della porta del server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 /**
  * Database Connection
- * Connessione al database MongoDB prima di avviare il server
+ * Connessione al database SQLite con Prisma prima di avviare il server
  */
 const initializeDatabase = async () => {
   try {
     await connectDatabase();
-    console.log('📦 All models registered successfully');
+    logger.info('Prisma client initialized successfully');
   } catch (error) {
-    console.error('❌ Database initialization failed:', error);
+    logger.error('Database initialization failed:', error);
     process.exit(1);
   }
 };
@@ -53,14 +82,16 @@ const initializeDatabase = async () => {
 // MIDDLEWARE CONFIGURATION
 // ==========================================
 
+// Request ID and basic logging setup (must be first)
+app.use(requestIdMiddleware());
+app.use(healthCheckLoggingMiddleware());
+
 // Security middleware
 app.use(cors(corsOptions));
 app.use(helmet(helmetConfig));
 
-// Logging middleware (solo in development)
-if (process.env.NODE_ENV !== 'production') {
-  app.use(morgan("dev"));
-}
+// HTTP request logging with Morgan + Winston
+app.use(morgan('combined', { stream: morganStream }));
 
 // Compression middleware per ridurre la dimensione delle risposte
 app.use(compression());
@@ -68,13 +99,11 @@ app.use(compression());
 // Rate limiting middleware
 app.use(rateLimitMiddleware);
 
-// Request logging middleware (da rimuovere in produzione)
-if (process.env.NODE_ENV === 'development') {
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    console.log(`${req.method} ${req.url} - ${new Date().toISOString()}`);
-    next();
-  });
-}
+// Custom logging middleware
+app.use(requestLoggingMiddleware());
+app.use(responseLoggingMiddleware());
+app.use(securityLoggingMiddleware());
+app.use(userActivityLoggingMiddleware());
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -88,20 +117,20 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
  * Health check endpoint
  * Verifica lo stato del server e del database
  */
-app.get("/health", async (req, res) => {
+app.get("/health", async (_req, res) => {
   try {
-    // Verifica connessione database
-    const mongoose = require('mongoose');
-    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    // Verifica connessione database Prisma
+    const dbHealthy = await checkDatabaseHealth();
     
     res.status(200).json({
       status: 'OK',
       timestamp: new Date().toISOString(),
-      database: dbStatus,
+      database: dbHealthy ? 'connected' : 'disconnected',
       version: process.env.npm_package_version || '1.0.0',
       environment: process.env.NODE_ENV || 'development'
     });
   } catch (error) {
+    console.error('Health check error:', error);
     res.status(503).json({
       status: 'ERROR',
       timestamp: new Date().toISOString(),
@@ -113,7 +142,7 @@ app.get("/health", async (req, res) => {
 /**
  * ROTTA PUBBLICA - Homepage del server
  */
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.json({
     message: "QuickStock Solutions API",
     version: "1.0.0",
@@ -126,6 +155,13 @@ app.get("/", (req, res) => {
  * ROTTE API - Gestione delle risorse
  */
 app.use("/api/users", usersRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/files", fileRoutes);
+app.use("/api/backup", backupRoutes);
+app.use("/api/monitoring", monitoringRoutes);
 
 /**
  * ROTTA PROTETTA - Esempio di endpoint che richiede autenticazione
@@ -157,35 +193,33 @@ app.use((req, res) => {
 /**
  * Middleware di gestione errori globale
  */
-app.use((error: any, req: Request, res: Response, next: NextFunction) => {
-  console.error('❌ Server Error:', error);
+app.use(errorLoggingMiddleware());
+app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error('Server Error:', error);
 
-  // Errori di validazione Mongoose
-  if (error.name === 'ValidationError') {
-    const errors = Object.values(error.errors).map((err: any) => err.message);
+  // Errori di validazione Prisma
+  if (error.code === 'P2002') {
     return res.status(400).json({
-      error: 'Validation Error',
-      message: 'Invalid input data',
-      details: errors,
+      error: 'Unique Constraint Error',
+      message: 'A record with this value already exists',
       timestamp: new Date().toISOString()
     });
   }
 
-  // Errori di duplicazione (unique constraint)
-  if (error.code === 11000) {
-    const field = Object.keys(error.keyValue)[0];
-    return res.status(400).json({
-      error: 'Duplicate Field Error',
-      message: `${field} already exists`,
+  // Errori di record non trovato
+  if (error.code === 'P2025') {
+    return res.status(404).json({
+      error: 'Record Not Found',
+      message: 'The requested resource was not found',
       timestamp: new Date().toISOString()
     });
   }
 
-  // Errori di casting (invalid ObjectId)
-  if (error.name === 'CastError') {
+  // Errori di foreign key constraint
+  if (error.code === 'P2003') {
     return res.status(400).json({
-      error: 'Invalid ID',
-      message: 'Invalid resource ID format',
+      error: 'Foreign Key Constraint Error',
+      message: 'Invalid reference to related record',
       timestamp: new Date().toISOString()
     });
   }
@@ -231,37 +265,92 @@ const startServer = async () => {
     // Inizializza il database
     await initializeDatabase();
     
+    // Initialize monitoring system
+    let systemMonitoring: SystemMonitoringService;
+    let alertService: AlertService;
+    let monitoringScheduler: MonitoringScheduler;
+    
+    try {
+      // Initialize Prometheus metrics
+      const prometheusClient = initializeMetricsRegistry();
+      const customMetrics = createCustomMetrics(prometheusClient);
+      
+      // Initialize monitoring services
+      systemMonitoring = new SystemMonitoringService(customMetrics, monitoringConfig);
+      alertService = new AlertService(customMetrics, monitoringConfig);
+      monitoringScheduler = MonitoringScheduler.getInstance(monitoringConfig, systemMonitoring, alertService);
+      
+      // Set monitoring services for routes
+      setMonitoringServices(systemMonitoring, alertService, monitoringScheduler);
+      
+      // Start monitoring scheduler
+      monitoringScheduler.initialize();
+      
+      logger.info('Monitoring system initialized successfully');
+    } catch (error: any) {
+      logger.error('Failed to initialize monitoring system', { error: error.message });
+    }
+
+    // Initialize backup scheduler
+    try {
+      const backupScheduler = BackupScheduler.getInstance(backupConfig);
+      backupScheduler.initialize();
+      logger.info('Backup scheduler initialized successfully');
+    } catch (error: any) {
+      logger.error('Failed to initialize backup scheduler', { error: error.message });
+    }
+    
     // Avvia il server HTTP
     const server = app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`📊 Health check available at: http://localhost:${PORT}/health`);
+      logger.info(`Server running on http://localhost:${PORT}`);
+      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Health check available at: http://localhost:${PORT}/health`);
+      logger.info(`Backup system available at: http://localhost:${PORT}/api/backup`);
+      logger.info(`Monitoring dashboard at: http://localhost:${PORT}/api/monitoring`);
+      logger.info(`Prometheus metrics at: http://localhost:${PORT}/api/monitoring/metrics`);
     });
 
     // Gestione graceful shutdown
     const gracefulShutdown = (signal: string) => {
-      console.log(`\n⚠️ Received ${signal}. Shutting down gracefully...`);
+      logger.warn(`Received ${signal}. Shutting down gracefully...`);
       
       server.close(async () => {
-        console.log('🛑 HTTP server closed');
+        logger.info('HTTP server closed');
         
         try {
-          // Chiudi connessione database
-          const mongoose = require('mongoose');
-          await mongoose.connection.close();
-          console.log('📦 Database connection closed');
+          // Shutdown monitoring scheduler
+          try {
+            if (monitoringScheduler) {
+              monitoringScheduler.shutdown();
+              logger.info('Monitoring scheduler shutdown completed');
+            }
+          } catch (error: any) {
+            logger.error('Error shutting down monitoring scheduler', { error: error.message });
+          }
           
-          console.log('✅ Graceful shutdown completed');
+          // Shutdown backup scheduler
+          try {
+            const backupScheduler = BackupScheduler.getInstance();
+            backupScheduler.shutdown();
+            logger.info('Backup scheduler shutdown completed');
+          } catch (error: any) {
+            logger.error('Error shutting down backup scheduler', { error: error.message });
+          }
+          
+          // Chiudi connessione database Prisma
+          await disconnectDatabase();
+          
+          logger.info('Graceful shutdown completed');
           process.exit(0);
         } catch (error) {
-          console.error('❌ Error during shutdown:', error);
+          logger.error('Error during shutdown:', error);
           process.exit(1);
         }
       });
 
       // Forza chiusura dopo 30 secondi
       setTimeout(() => {
-        console.error('❌ Forced shutdown after timeout');
+        logger.error('Forced shutdown after timeout');
         process.exit(1);
       }, 30000);
     };
@@ -271,7 +360,7 @@ const startServer = async () => {
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    logger.error('Failed to start server:', error);
     process.exit(1);
   }
 };

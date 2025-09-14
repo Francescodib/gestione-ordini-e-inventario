@@ -45,17 +45,17 @@ export const connectDatabase = async (): Promise<void> => {
   try {
     // Test database connection
     await prisma.$connect();
-    console.log('✅ Database connected successfully');
-    console.log(`📍 Database: SQLite (${process.env.DATABASE_URL || './dev.db'})`);
+    console.log('Database connected successfully');
+    console.log(`Database: SQLite (${process.env.DATABASE_URL || './dev.db'})`);
     
     // Log database info in development
     if (process.env.NODE_ENV === 'development') {
       const userCount = await prisma.user.count();
-      console.log(`👥 Users in database: ${userCount}`);
+      console.log(`Users in database: ${userCount}`);
     }
     
   } catch (error) {
-    console.error('❌ Database connection failed:', error);
+    console.error('Database connection failed:', error);
     throw error;
   }
 };
@@ -67,9 +67,9 @@ export const connectDatabase = async (): Promise<void> => {
 export const disconnectDatabase = async (): Promise<void> => {
   try {
     await prisma.$disconnect();
-    console.log('👋 Database disconnected');
+    console.log('Database disconnected');
   } catch (error) {
-    console.error('❌ Error disconnecting from database:', error);
+    console.error('Error disconnecting from database:', error);
   }
 };
 

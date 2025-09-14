@@ -30,11 +30,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       const response = await authService.login({ email, password });
       
-      setToken(response.token);
-      setUser(response.user);
-      
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      if (response.success) {
+        setToken(response.token);
+        setUser(response.user);
+        
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+      } else {
+        throw new Error(response.message || 'Login failed');
+      }
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -43,16 +47,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (name: string, email: string, password: string, role: 'user' | 'admin' = 'user') => {
+  const register = async (username: string, firstName: string, lastName: string, email: string, password: string, role: 'USER' | 'ADMIN' | 'MANAGER' = 'USER') => {
     try {
       setLoading(true);
-      const response = await authService.register({ name, email, password, role });
+
+      const registrationData = {
+        username,
+        firstName,
+        lastName,
+        email,
+        password,
+        confirmPassword: password,
+        role
+      };
       
-      setToken(response.token);
-      setUser(response.user);
+      console.log('Sending registration data:', registrationData);
       
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      const response = await authService.register(registrationData);
+      
+      if (response.success) {
+        setToken(response.token);
+        setUser(response.user);
+        
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+      } else {
+        throw new Error(response.message || 'Registration failed');
+      }
     } catch (error) {
       console.error('Registration error:', error);
       throw error;

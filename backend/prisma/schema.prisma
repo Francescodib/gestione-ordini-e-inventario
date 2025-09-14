@@ -20,12 +20,14 @@ model User {
   role      UserRole @default(USER)
   isActive  Boolean  @default(true)
   emailVerified Boolean @default(false)
+  avatar    String?  // URL to avatar image
   lastLogin DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
   orders Order[]
+  userAvatar UserAvatar?
 
   @@map("users")
 }
@@ -76,6 +78,7 @@ model Product {
   // Relations
   category   Category    @relation(fields: [categoryId], references: [id])
   orderItems OrderItem[]
+  productImages ProductImage[]
 
   @@map("products")
 }
@@ -158,4 +161,66 @@ enum PaymentStatus {
   FAILED
   REFUNDED
   PARTIALLY_REFUNDED
+}
+
+// Product Image model for file uploads
+model ProductImage {
+  id            String   @id @default(cuid())
+  productId     String
+  filename      String
+  originalName  String
+  thumbnailPath String
+  mediumPath    String
+  largePath     String
+  originalPath  String
+  isPrimary     Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  fileSize      Int
+  mimetype      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+}
+
+// User Avatar model
+model UserAvatar {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  filename     String
+  originalName String
+  smallPath    String
+  mediumPath   String
+  largePath    String
+  fileSize     Int
+  mimetype     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_avatars")
+}
+
+// Generic uploaded files model
+model UploadedFile {
+  id           String    @id @default(cuid())
+  filename     String
+  originalName String
+  mimetype     String
+  fileSize     Int
+  filePath     String
+  url          String
+  type         String    // 'image', 'document', 'avatar'
+  entityId     String?   // ID of related entity (product, user, etc.)
+  entityType   String?   // Type of related entity ('product', 'user', etc.)
+  description  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("uploaded_files")
 }
