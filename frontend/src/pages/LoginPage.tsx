@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import ErrorMessage from '../components/ErrorMessage';
+import {Warehouse } from 'lucide-react';
+import Button from '../components/Button';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -30,6 +32,10 @@ const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
+        <div className="flex justify-center flex-col items-center">
+          <Warehouse className="w-25 h-25 text-blue-800" />
+          <h1 className="text-2xl font-bold text-blue-800">QuickStock</h1>
+        </div>
         <div>
           <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
             Accedi al tuo account
@@ -89,13 +95,19 @@ const LoginPage: React.FC = () => {
             )}
 
             <div>
-              <button
+              <Button
                 type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                variant="primary"
+                size="md"
+                fullWidth
+                loading={loading}
               >
-                {loading ? 'Accesso in corso...' : 'Accedi'}
-              </button>
+                Accedi
+              </Button>
+            </div>
+            <div className="flex justify-center flex-col bg-gray-50 rounded-md p-2 shadow-md">
+              <p className="text-xs text-center text-gray-500 mb-2">Utente demo: <span className="font-mono">demo@demo.com</span></p>
+              <p className="text-xs text-center text-gray-500">Password: <span className="font-mono">Demo123!</span></p>
             </div>
           </form>
         </div>
