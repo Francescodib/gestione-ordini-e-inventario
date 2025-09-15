@@ -23,8 +23,8 @@ beforeAll(async () => {
   app.use('/api/users', userRoutes);
   
   // Initialize test helper
-  testHelper = new ApiTestHelper(app, global.testPrisma);
-  dbUtils = new DatabaseTestUtils(global.testPrisma);
+  testHelper = new ApiTestHelper(app, (global as any).testSequelize);
+  dbUtils = new DatabaseTestUtils((global as any).testSequelize);
   
   await testHelper.initialize();
 });

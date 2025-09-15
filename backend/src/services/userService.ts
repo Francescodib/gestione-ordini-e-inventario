@@ -1,11 +1,11 @@
 /**
- * User service with Prisma ORM
+ * User service with Sequelize ORM
  * File: src/services/userService.ts
  */
 
-import { User, UserRole } from '@prisma/client';
-import { prisma } from '../config/database';
+import { User, UserRole } from '../models';
 import bcrypt from 'bcryptjs';
+import { Op, WhereOptions, fn, col } from 'sequelize';
 
 /**
  * Interfaces for requests
@@ -29,7 +29,7 @@ export interface UpdateUserRequest {
 }
 
 /**
- * User service class with Prisma
+ * User service class with Sequelize
  */
 export class UserService {
 
@@ -45,22 +45,20 @@ export class UserService {
       // Hash password
       const hashedPassword = await bcrypt.hash(userData.password, 12);
       
-      const user = await prisma.user.create({
-        data: {
-          username: userData.username.toLowerCase().trim(),
-          email: userData.email.toLowerCase().trim(),
-          password: hashedPassword,
-          firstName: userData.firstName.trim(),
-          lastName: userData.lastName.trim(),
-          role: userData.role || UserRole.USER
-        }
+      const user = await User.create({
+        username: userData.username.toLowerCase().trim(),
+        email: userData.email.toLowerCase().trim(),
+        password: hashedPassword,
+        firstName: userData.firstName.trim(),
+        lastName: userData.lastName.trim(),
+        role: userData.role || UserRole.USER
       });
 
       return user;
     } catch (error: any) {
       // Handle unique constraint violations
-      if (error.code === 'P2002') {
-        const field = error.meta?.target?.[0] || 'field';
+      if (error.name === 'SequelizeUniqueConstraintError') {
+        const field = error.fields && Object.keys(error.fields)[0] || 'field';
         throw new Error(`User with this ${field} already exists`);
       }
       throw error;
@@ -73,23 +71,12 @@ export class UserService {
   static async getAllUsers(includeInactive: boolean = false): Promise<User[]> {
     const where = includeInactive ? {} : { isActive: true };
     
-    return prisma.user.findMany({
+    return User.findAll({
       where,
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        emailVerified: true,
-        lastLogin: true,
-        createdAt: true,
-        updatedAt: true,
-        password: false // Exclude password
+      attributes: {
+        exclude: ['password']
       },
-      orderBy: { createdAt: 'desc' }
+      order: [['createdAt', 'DESC']]
     });
   }
 
@@ -98,21 +85,9 @@ export class UserService {
    */
   static async getUserById(id: string): Promise<User | null> {
     try {
-      return prisma.user.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          isActive: true,
-          emailVerified: true,
-          lastLogin: true,
-          createdAt: true,
-          updatedAt: true,
-          password: false
+      return User.findByPk(id, {
+        attributes: {
+          exclude: ['password']
         }
       });
     } catch (error) {
@@ -125,22 +100,11 @@ export class UserService {
    */
   static async getUserByEmail(email: string, includePassword: boolean = false): Promise<User | null> {
     try {
-      return prisma.user.findUnique({
+      const attributes = includePassword ? undefined : { exclude: ['password'] };
+      
+      return User.findOne({
         where: { email: email.toLowerCase().trim() },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          isActive: true,
-          emailVerified: true,
-          lastLogin: true,
-          createdAt: true,
-          updatedAt: true,
-          password: includePassword
-        }
+        attributes
       });
     } catch (error) {
       return null;
@@ -152,21 +116,10 @@ export class UserService {
    */
   static async getUserByUsername(username: string): Promise<User | null> {
     try {
-      return prisma.user.findUnique({
+      return User.findOne({
         where: { username: username.toLowerCase().trim() },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          isActive: true,
-          emailVerified: true,
-          lastLogin: true,
-          createdAt: true,
-          updatedAt: true,
-          password: false
+        attributes: {
+          exclude: ['password']
         }
       });
     } catch (error) {
@@ -200,31 +153,25 @@ export class UserService {
         updateData.isActive = userData.isActive;
       }
 
-      return prisma.user.update({
+      const [affectedRows] = await User.update(updateData, {
         where: { id },
-        data: updateData,
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          isActive: true,
-          emailVerified: true,
-          lastLogin: true,
-          createdAt: true,
-          updatedAt: true,
-          password: false
+        returning: true
+      });
+
+      if (affectedRows === 0) {
+        return null; // User not found
+      }
+
+      // Get the updated user without password
+      return User.findByPk(id, {
+        attributes: {
+          exclude: ['password']
         }
       });
     } catch (error: any) {
-      if (error.code === 'P2002') {
-        const field = error.meta?.target?.[0] || 'field';
+      if (error.name === 'SequelizeUniqueConstraintError') {
+        const field = error.fields && Object.keys(error.fields)[0] || 'field';
         throw new Error(`User with this ${field} already exists`);
-      }
-      if (error.code === 'P2025') {
-        return null; // User not found
       }
       throw error;
     }
@@ -235,15 +182,12 @@ export class UserService {
    */
   static async deleteUser(id: string): Promise<boolean> {
     try {
-      await prisma.user.update({
-        where: { id },
-        data: { isActive: false }
-      });
-      return true;
+      const [affectedRows] = await User.update(
+        { isActive: false },
+        { where: { id } }
+      );
+      return affectedRows > 0;
     } catch (error: any) {
-      if (error.code === 'P2025') {
-        return false; // User not found
-      }
       return false;
     }
   }
@@ -253,14 +197,11 @@ export class UserService {
    */
   static async hardDeleteUser(id: string): Promise<boolean> {
     try {
-      await prisma.user.delete({
+      const deletedRows = await User.destroy({
         where: { id }
       });
-      return true;
+      return deletedRows > 0;
     } catch (error: any) {
-      if (error.code === 'P2025') {
-        return false; // User not found
-      }
       return false;
     }
   }
@@ -275,7 +216,7 @@ export class UserService {
   static async authenticateUser(email: string, password: string): Promise<User | null> {
     try {
       // Find user with password
-      const user = await prisma.user.findUnique({
+      const user = await User.findOne({
         where: { 
           email: email.toLowerCase().trim(),
           isActive: true 
@@ -293,13 +234,13 @@ export class UserService {
       }
 
       // Update last login
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastLogin: new Date() }
-      });
+      await User.update(
+        { lastLogin: new Date() },
+        { where: { id: user.id } }
+      );
 
       // Return user without password
-      const { password: _, ...userWithoutPassword } = user;
+      const { password: _, ...userWithoutPassword } = user.toJSON();
       return userWithoutPassword as User;
     } catch (error) {
       return null;
@@ -314,26 +255,15 @@ export class UserService {
    * Find users by role
    */
   static async getUsersByRole(role: UserRole): Promise<User[]> {
-    return prisma.user.findMany({
+    return User.findAll({
       where: { 
         role, 
         isActive: true 
       },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        emailVerified: true,
-        lastLogin: true,
-        createdAt: true,
-        updatedAt: true,
-        password: false
+      attributes: {
+        exclude: ['password']
       },
-      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }]
+      order: [['firstName', 'ASC'], ['lastName', 'ASC']]
     });
   }
 
@@ -341,31 +271,20 @@ export class UserService {
    * Search users
    */
   static async searchUsers(searchTerm: string): Promise<User[]> {
-    return prisma.user.findMany({
+    return User.findAll({
       where: {
         isActive: true,
-        OR: [
-          { firstName: { contains: searchTerm, mode: 'insensitive' } },
-          { lastName: { contains: searchTerm, mode: 'insensitive' } },
-          { email: { contains: searchTerm, mode: 'insensitive' } },
-          { username: { contains: searchTerm, mode: 'insensitive' } }
+        [Op.or]: [
+          { firstName: { [Op.iLike]: `%${searchTerm}%` } },
+          { lastName: { [Op.iLike]: `%${searchTerm}%` } },
+          { email: { [Op.iLike]: `%${searchTerm}%` } },
+          { username: { [Op.iLike]: `%${searchTerm}%` } }
         ]
       },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        emailVerified: true,
-        lastLogin: true,
-        createdAt: true,
-        updatedAt: true,
-        password: false
+      attributes: {
+        exclude: ['password']
       },
-      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }]
+      order: [['firstName', 'ASC'], ['lastName', 'ASC']]
     });
   }
 
@@ -374,17 +293,21 @@ export class UserService {
    */
   static async getUserStats() {
     const [total, active, inactive, byRole] = await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { isActive: true } }),
-      prisma.user.count({ where: { isActive: false } }),
-      prisma.user.groupBy({
-        by: ['role'],
-        _count: { role: true }
+      User.count(),
+      User.count({ where: { isActive: true } }),
+      User.count({ where: { isActive: false } }),
+      User.findAll({
+        attributes: [
+          'role',
+          [fn('COUNT', col('role')), 'count']
+        ],
+        group: ['role'],
+        raw: true
       })
     ]);
 
-    const roleStats = byRole.reduce((acc, item) => {
-      acc[item.role.toLowerCase()] = item._count.role;
+    const roleStats = (byRole as any[]).reduce((acc, item) => {
+      acc[item.role.toLowerCase()] = parseInt(item.count);
       return acc;
     }, {} as Record<string, number>);
 
@@ -420,15 +343,15 @@ export class UserService {
       return { emailExists: false, usernameExists: false };
     }
 
-    const where: any = { OR: conditions };
+    const where: WhereOptions = { [Op.or]: conditions };
     
     if (excludeId) {
-      where.NOT = { id: excludeId };
+      where[Op.not] = { id: excludeId };
     }
 
-    const existingUsers = await prisma.user.findMany({
+    const existingUsers = await User.findAll({
       where,
-      select: { email: true, username: true }
+      attributes: ['email', 'username']
     });
 
     const emailExists = email ? existingUsers.some(user => user.email === email.toLowerCase().trim()) : false;

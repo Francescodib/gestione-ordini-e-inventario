@@ -3,7 +3,7 @@
  * All types related to product management
  */
 
-import { ProductStatus } from '@prisma/client';
+import { ProductStatus } from '../models';
 import { AuditFields, PaginationQuery, Statistics, Address } from './common';
 
 /**

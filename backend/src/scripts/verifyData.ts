@@ -3,9 +3,8 @@
  * Mostra un riepilogo completo dei dati di seed
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { sequelize, User, Category, Product, Order, OrderItem, UserRole, ProductStatus, OrderStatus } from '../models';
+import { Op, fn, col } from 'sequelize';
 
 async function verifyData() {
   console.log('🔍 Database Content Verification\n');
@@ -13,8 +12,8 @@ async function verifyData() {
   try {
     // Verifica utenti
     console.log('👥 USERS:');
-    const users = await prisma.user.findMany({
-      orderBy: { role: 'asc' }
+    const users = await User.findAll({
+      order: [['role', 'ASC']]
     });
     
     users.forEach(user => {
@@ -24,31 +23,39 @@ async function verifyData() {
     
     // Verifica categorie
     console.log('\n📂 CATEGORIES:');
-    const categories = await prisma.category.findMany({
-      include: {
-        parent: true,
-        children: true,
-        _count: { select: { products: true } }
+    const categories = await Category.findAll({
+      include: [
+        { model: Category, as: 'parent' },
+        { model: Category, as: 'children' },
+        { model: Product, as: 'products', attributes: [] }
+      ],
+      attributes: {
+        include: [
+          [fn('COUNT', col('products.id')), 'productCount']
+        ]
       },
-      orderBy: { sortOrder: 'asc' }
+      group: ['Category.id', 'parent.id'],
+      order: [['sortOrder', 'ASC']]
     });
     
     const mainCategories = categories.filter(c => !c.parentId);
-    mainCategories.forEach(category => {
-      console.log(`  📁 ${category.name} (${category._count.products} products)`);
+    for (const category of mainCategories) {
+      const productCount = await Product.count({ where: { categoryId: category.id } });
+      console.log(`  📁 ${category.name} (${productCount} products)`);
       const subcategories = categories.filter(c => c.parentId === category.id);
-      subcategories.forEach(subcat => {
-        console.log(`    └── ${subcat.name} (${subcat._count.products} products)`);
-      });
-    });
+      for (const subcat of subcategories) {
+        const subcatProductCount = await Product.count({ where: { categoryId: subcat.id } });
+        console.log(`    └── ${subcat.name} (${subcatProductCount} products)`);
+      }
+    }
     
     // Verifica prodotti
     console.log('\n📦 PRODUCTS:');
-    const products = await prisma.product.findMany({
-      include: {
-        category: true
-      },
-      orderBy: { name: 'asc' }
+    const products = await Product.findAll({
+      include: [
+        { model: Category, as: 'category' }
+      ],
+      order: [['name', 'ASC']]
     });
     
     products.forEach(product => {
@@ -60,16 +67,18 @@ async function verifyData() {
     
     // Verifica ordini
     console.log('\n🛒 ORDERS:');
-    const orders = await prisma.order.findMany({
-      include: {
-        user: true,
-        items: {
-          include: {
-            product: true
-          }
+    const orders = await Order.findAll({
+      include: [
+        { model: User, as: 'user' },
+        { 
+          model: OrderItem, 
+          as: 'items',
+          include: [
+            { model: Product, as: 'product' }
+          ]
         }
-      },
-      orderBy: { createdAt: 'desc' }
+      ],
+      order: [['createdAt', 'DESC']]
     });
     
     orders.forEach(order => {
@@ -83,57 +92,64 @@ async function verifyData() {
     
     // Statistiche generali
     console.log('\n📊 STATISTICS:');
-    const stats = await Promise.all([
-      prisma.user.count(),
-      prisma.category.count(),
-      prisma.product.count(),
-      prisma.order.count(),
-      prisma.orderItem.count(),
-      prisma.product.aggregate({
-        _sum: { stock: true },
-        _avg: { price: true }
-      }),
-      prisma.order.aggregate({
-        _sum: { totalAmount: true },
-        _avg: { totalAmount: true }
-      })
+    const [userCount, categoryCount, productCount, orderCount, orderItemCount] = await Promise.all([
+      User.count(),
+      Category.count(),
+      Product.count(),
+      Order.count(),
+      OrderItem.count()
     ]);
     
-    console.log(`  Total Users: ${stats[0]}`);
-    console.log(`  Total Categories: ${stats[1]}`);
-    console.log(`  Total Products: ${stats[2]}`);
-    console.log(`  Total Orders: ${stats[3]}`);
-    console.log(`  Total Order Items: ${stats[4]}`);
-    console.log(`  Total Inventory Units: ${stats[5]._sum.stock || 0}`);
-    console.log(`  Average Product Price: €${(stats[5]._avg.price || 0).toFixed(2)}`);
-    console.log(`  Total Revenue: €${(stats[6]._sum.totalAmount || 0).toFixed(2)}`);
-    console.log(`  Average Order Value: €${(stats[6]._avg.totalAmount || 0).toFixed(2)}`);
+    const productStats = await Product.findAll({
+      attributes: [
+        [fn('SUM', col('stock')), 'totalStock'],
+        [fn('AVG', col('price')), 'averagePrice']
+      ],
+      raw: true
+    });
+    
+    const orderStats = await Order.findAll({
+      attributes: [
+        [fn('SUM', col('totalAmount')), 'totalRevenue'],
+        [fn('AVG', col('totalAmount')), 'averageOrderValue']
+      ],
+      raw: true
+    });
+    
+    console.log(`  Total Users: ${userCount}`);
+    console.log(`  Total Categories: ${categoryCount}`);
+    console.log(`  Total Products: ${productCount}`);
+    console.log(`  Total Orders: ${orderCount}`);
+    console.log(`  Total Order Items: ${orderItemCount}`);
+    console.log(`  Total Inventory Units: ${productStats[0]?.totalStock || 0}`);
+    console.log(`  Average Product Price: €${(productStats[0]?.averagePrice || 0).toFixed(2)}`);
+    console.log(`  Total Revenue: €${(orderStats[0]?.totalRevenue || 0).toFixed(2)}`);
+    console.log(`  Average Order Value: €${(orderStats[0]?.averageOrderValue || 0).toFixed(2)}`);
     
     // Controlli di integrità
     console.log('\n🔍 INTEGRITY CHECKS:');
     
-    // Prodotti con stock basso
-    const lowStockProducts = await prisma.product.findMany({
-      where: {
-        stock: { lte: prisma.product.fields.minStock }
-      }
-    });
+    // Prodotti con stock basso - compare stock with minStock in same row
+    const lowStockProducts = await sequelize.query(
+      'SELECT * FROM products WHERE stock <= minStock',
+      { type: sequelize.QueryTypes.SELECT }
+    );
     console.log(`  Low Stock Products: ${lowStockProducts.length}`);
     
     // Prodotti esauriti
-    const outOfStockProducts = await prisma.product.findMany({
+    const outOfStockProducts = await Product.findAll({
       where: { stock: 0 }
     });
     console.log(`  Out of Stock Products: ${outOfStockProducts.length}`);
     
     // Ordini pendenti
-    const pendingOrders = await prisma.order.findMany({
-      where: { status: 'PENDING' }
+    const pendingOrders = await Order.findAll({
+      where: { status: OrderStatus.PENDING }
     });
     console.log(`  Pending Orders: ${pendingOrders.length}`);
     
     // Utenti non verificati
-    const unverifiedUsers = await prisma.user.findMany({
+    const unverifiedUsers = await User.findAll({
       where: { emailVerified: false }
     });
     console.log(`  Unverified Users: ${unverifiedUsers.length}`);

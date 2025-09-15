@@ -1,11 +1,12 @@
 /**
- * Product Service with Prisma ORM
+ * Product Service with Sequelize ORM
  * Comprehensive product management with advanced features
  */
 
-import { Product, ProductStatus, Prisma } from '@prisma/client';
-import { prisma } from '../config/database';
+import { Product, ProductStatus, Category, OrderItem } from '../models';
+import { sequelize } from '../config/database';
 import { logger, logUtils } from '../config/logger';
+import { Op, WhereOptions } from 'sequelize';
 // Note: Product types are defined inline in this service for now
 // Future migration: move to ../types/product.ts
 
@@ -121,7 +122,7 @@ export class ProductService {
       const startTime = Date.now();
 
       // Check if SKU already exists
-      const existingProduct = await prisma.product.findUnique({
+      const existingProduct = await Product.findOne({
         where: { sku: productData.sku }
       });
 
@@ -130,20 +131,19 @@ export class ProductService {
       }
 
       // Validate category exists
-      const category = await prisma.category.findUnique({
-        where: { id: productData.categoryId }
-      });
+      const category = await Category.findByPk(productData.categoryId);
 
       if (!category) {
         throw new Error(`Category with ID ${productData.categoryId} not found`);
       }
 
       // Prepare data for creation
-      const createData: Prisma.ProductCreateInput = {
+      const createData = {
         name: productData.name,
         description: productData.description,
         sku: productData.sku.toUpperCase(),
         barcode: productData.barcode,
+        categoryId: productData.categoryId,
         price: productData.price,
         costPrice: productData.costPrice,
         stock: productData.stock || 0,
@@ -151,17 +151,18 @@ export class ProductService {
         maxStock: productData.maxStock,
         weight: productData.weight,
         status: productData.status || ProductStatus.ACTIVE,
-        category: {
-          connect: { id: productData.categoryId }
-        }
+        images: productData.images ? JSON.stringify(productData.images) : null,
+        tags: productData.tags ? JSON.stringify(productData.tags) : null,
+        supplier: productData.supplier ? JSON.stringify(productData.supplier) : null,
+        dimensions: productData.dimensions ? JSON.stringify(productData.dimensions) : null
       };
 
       // Create the product
-      const product = await prisma.product.create({
-        data: createData,
-        include: {
-          category: true
-        }
+      const product = await Product.create(createData);
+
+      // Load the product with category association
+      const productWithCategory = await Product.findByPk(product.id, {
+        include: [{ model: Category, as: 'category' }]
       });
 
       const duration = Date.now() - startTime;
@@ -182,7 +183,7 @@ export class ProductService {
         duration
       });
 
-      return product;
+      return productWithCategory!;
     } catch (error: any) {
       logUtils.logDbOperation('CREATE', 'products', undefined, error);
       logger.error('Product creation failed', {
@@ -215,7 +216,7 @@ export class ProductService {
       } = options;
 
       // Build where clause from filters
-      const whereClause: Prisma.ProductWhereInput = {
+      const whereClause: WhereOptions = {
         isActive: filters.isActive !== false ? true : undefined,
         status: filters.status,
         categoryId: filters.categoryId,
@@ -223,50 +224,52 @@ export class ProductService {
 
       // Stock filters
       if (filters.inStock === true) {
-        whereClause.stock = { gt: 0 };
+        whereClause.stock = { [Op.gt]: 0 };
       } else if (filters.inStock === false) {
-        whereClause.stock = { lte: 0 };
+        whereClause.stock = { [Op.lte]: 0 };
       }
 
       if (filters.lowStock === true) {
-        whereClause.stock = { lte: prisma.product.fields.minStock };
+        whereClause.stock = sequelize.where(
+          sequelize.col('stock'),
+          Op.lte,
+          sequelize.col('minStock')
+        );
       }
 
       // Price range filter
       if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
         whereClause.price = {};
         if (filters.priceMin !== undefined) {
-          whereClause.price.gte = filters.priceMin;
+          whereClause.price[Op.gte] = filters.priceMin;
         }
         if (filters.priceMax !== undefined) {
-          whereClause.price.lte = filters.priceMax;
+          whereClause.price[Op.lte] = filters.priceMax;
         }
       }
 
       // Search filter
       if (filters.search) {
-        whereClause.OR = [
-          { name: { contains: filters.search, mode: 'insensitive' } },
-          { description: { contains: filters.search, mode: 'insensitive' } },
-          { sku: { contains: filters.search.toUpperCase(), mode: 'insensitive' } },
+        (whereClause as any)[Op.or] = [
+          { name: { [Op.iLike]: `%${filters.search}%` } },
+          { description: { [Op.iLike]: `%${filters.search}%` } },
+          { sku: { [Op.iLike]: `%${filters.search.toUpperCase()}%` } },
         ];
       }
 
       // Calculate pagination
-      const skip = (page - 1) * limit;
+      const offset = (page - 1) * limit;
 
       // Execute queries in parallel
       const [products, total] = await Promise.all([
-        prisma.product.findMany({
+        Product.findAll({
           where: whereClause,
-          include: {
-            category: true
-          },
-          orderBy: { [sortBy]: sortOrder },
-          skip,
-          take: limit
+          include: [{ model: Category, as: 'category' }],
+          order: [[sortBy, sortOrder.toUpperCase()]],
+          offset,
+          limit
         }),
-        prisma.product.count({ where: whereClause })
+        Product.count({ where: whereClause })
       ]);
 
       const duration = Date.now() - startTime;
@@ -294,11 +297,8 @@ export class ProductService {
     try {
       const startTime = Date.now();
       
-      const product = await prisma.product.findUnique({
-        where: { id },
-        include: {
-          category: true
-        }
+      const product = await Product.findByPk(id, {
+        include: [{ model: Category, as: 'category' }]
       });
 
       const duration = Date.now() - startTime;
@@ -316,11 +316,9 @@ export class ProductService {
    */
   static async getProductBySku(sku: string): Promise<Product | null> {
     try {
-      const product = await prisma.product.findUnique({
+      const product = await Product.findOne({
         where: { sku: sku.toUpperCase() },
-        include: {
-          category: true
-        }
+        include: [{ model: Category, as: 'category' }]
       });
 
       return product;
@@ -338,9 +336,7 @@ export class ProductService {
       const startTime = Date.now();
 
       // Check if product exists
-      const existingProduct = await prisma.product.findUnique({
-        where: { id }
-      });
+      const existingProduct = await Product.findByPk(id);
 
       if (!existingProduct) {
         throw new Error(`Product with ID ${id} not found`);
@@ -348,7 +344,7 @@ export class ProductService {
 
       // Check SKU uniqueness if updating SKU
       if (updateData.sku && updateData.sku !== existingProduct.sku) {
-        const skuExists = await prisma.product.findUnique({
+        const skuExists = await Product.findOne({
           where: { sku: updateData.sku.toUpperCase() }
         });
 
@@ -359,9 +355,7 @@ export class ProductService {
 
       // Validate category if updating category
       if (updateData.categoryId) {
-        const category = await prisma.category.findUnique({
-          where: { id: updateData.categoryId }
-        });
+        const category = await Category.findByPk(updateData.categoryId);
 
         if (!category) {
           throw new Error(`Category with ID ${updateData.categoryId} not found`);
@@ -369,26 +363,32 @@ export class ProductService {
       }
 
       // Prepare update data
-      const updatePayload: Prisma.ProductUpdateInput = {
+      const updatePayload: any = {
         ...updateData,
         sku: updateData.sku?.toUpperCase(),
         updatedAt: new Date(),
       };
 
-      if (updateData.categoryId) {
-        updatePayload.category = {
-          connect: { id: updateData.categoryId }
-        };
-        delete updatePayload.categoryId;
+      // Handle JSON fields
+      if (updateData.images) {
+        updatePayload.images = JSON.stringify(updateData.images);
+      }
+      if (updateData.tags) {
+        updatePayload.tags = JSON.stringify(updateData.tags);
+      }
+      if (updateData.supplier) {
+        updatePayload.supplier = JSON.stringify(updateData.supplier);
+      }
+      if (updateData.dimensions) {
+        updatePayload.dimensions = JSON.stringify(updateData.dimensions);
       }
 
       // Update the product
-      const product = await prisma.product.update({
-        where: { id },
-        data: updatePayload,
-        include: {
-          category: true
-        }
+      await existingProduct.update(updatePayload);
+
+      // Reload with category association
+      const product = await Product.findByPk(id, {
+        include: [{ model: Category, as: 'category' }]
       });
 
       const duration = Date.now() - startTime;
@@ -396,20 +396,20 @@ export class ProductService {
 
       if (userId) {
         logUtils.logUserAction(userId, 'product_update', {
-          productId: product.id,
-          sku: product.sku,
+          productId: product!.id,
+          sku: product!.sku,
           changes: Object.keys(updateData)
         });
       }
 
       logger.info('Product updated successfully', {
-        productId: product.id,
-        sku: product.sku,
+        productId: product!.id,
+        sku: product!.sku,
         userId,
         duration
       });
 
-      return product;
+      return product!;
     } catch (error: any) {
       logUtils.logDbOperation('UPDATE', 'products', undefined, error);
       logger.error('Product update failed', {
@@ -429,27 +429,22 @@ export class ProductService {
       const startTime = Date.now();
 
       // Check if product exists
-      const existingProduct = await prisma.product.findUnique({
-        where: { id }
-      });
+      const existingProduct = await Product.findByPk(id);
 
       if (!existingProduct) {
         throw new Error(`Product with ID ${id} not found`);
       }
 
       // Check if product is used in any orders
-      const orderItems = await prisma.orderItem.findFirst({
+      const orderItems = await OrderItem.findOne({
         where: { productId: id }
       });
 
       if (orderItems) {
         // Soft delete - mark as inactive instead of deleting
-        await prisma.product.update({
-          where: { id },
-          data: {
-            isActive: false,
-            status: ProductStatus.DISCONTINUED
-          }
+        await existingProduct.update({
+          isActive: false,
+          status: ProductStatus.DISCONTINUED
         });
 
         logger.warn('Product soft deleted due to order references', {
@@ -459,9 +454,7 @@ export class ProductService {
         });
       } else {
         // Hard delete if no order references
-        await prisma.product.delete({
-          where: { id }
-        });
+        await existingProduct.destroy();
 
         logger.info('Product hard deleted', {
           productId: id,
@@ -502,9 +495,7 @@ export class ProductService {
    */
   static async updateStock(id: string, quantity: number, operation: 'add' | 'subtract' = 'subtract', userId?: string): Promise<Product> {
     try {
-      const product = await prisma.product.findUnique({
-        where: { id }
-      });
+      const product = await Product.findByPk(id);
 
       if (!product) {
         throw new Error(`Product with ID ${id} not found`);
@@ -522,15 +513,14 @@ export class ProductService {
         newStatus = ProductStatus.ACTIVE;
       }
 
-      const updatedProduct = await prisma.product.update({
-        where: { id },
-        data: {
-          stock: newStock,
-          status: newStatus
-        },
-        include: {
-          category: true
-        }
+      await product.update({
+        stock: newStock,
+        status: newStatus
+      });
+
+      // Reload with category association
+      const updatedProduct = await Product.findByPk(id, {
+        include: [{ model: Category, as: 'category' }]
       });
 
       if (userId) {
@@ -553,7 +543,7 @@ export class ProductService {
         });
       }
 
-      return updatedProduct;
+      return updatedProduct!;
     } catch (error: any) {
       logger.error('Stock update failed', {
         error: error.message,
@@ -571,20 +561,16 @@ export class ProductService {
    */
   static async getLowStockProducts(): Promise<Product[]> {
     try {
-      const products = await prisma.product.findMany({
+      const products = await Product.findAll({
         where: {
           isActive: true,
           stock: {
-            lte: prisma.product.fields.minStock,
-            gt: 0
+            [Op.lte]: sequelize.col('minStock'),
+            [Op.gt]: 0
           }
         },
-        include: {
-          category: true
-        },
-        orderBy: {
-          stock: 'asc'
-        }
+        include: [{ model: Category, as: 'category' }],
+        order: [['stock', 'ASC']]
       });
 
       return products;
@@ -599,17 +585,13 @@ export class ProductService {
    */
   static async getOutOfStockProducts(): Promise<Product[]> {
     try {
-      const products = await prisma.product.findMany({
+      const products = await Product.findAll({
         where: {
           isActive: true,
           stock: 0
         },
-        include: {
-          category: true
-        },
-        orderBy: {
-          updatedAt: 'desc'
-        }
+        include: [{ model: Category, as: 'category' }],
+        order: [['updatedAt', 'DESC']]
       });
 
       return products;
@@ -639,65 +621,76 @@ export class ProductService {
         topCategories
       ] = await Promise.all([
         // Total products count
-        prisma.product.count(),
+        Product.count(),
         
         // Active products count
-        prisma.product.count({
+        Product.count({
           where: { isActive: true, status: ProductStatus.ACTIVE }
         }),
         
         // Out of stock products count
-        prisma.product.count({
+        Product.count({
           where: { isActive: true, stock: 0 }
         }),
         
         // Low stock products count
-        prisma.product.count({
+        Product.count({
           where: {
             isActive: true,
-            stock: { lte: prisma.product.fields.minStock, gt: 0 }
+            stock: {
+              [Op.lte]: sequelize.col('minStock'),
+              [Op.gt]: 0
+            }
           }
         }),
         
-        // Value statistics
-        prisma.product.aggregate({
+        // Value statistics - using separate aggregations for sum and average
+        Product.findAll({
           where: { isActive: true },
-          _sum: { 
-            stock: true,
-          },
-          _avg: { 
-            price: true 
-          }
+          attributes: [
+            [sequelize.fn('SUM', sequelize.col('stock')), 'totalStock'],
+            [sequelize.fn('AVG', sequelize.col('price')), 'averagePrice']
+          ],
+          raw: true
         }),
         
         // Top categories by product count
-        prisma.category.findMany({
-          include: {
-            _count: {
-              select: { products: true }
-            }
-          },
-          orderBy: {
-            products: {
-              _count: 'desc'
-            }
-          },
-          take: 5
+        Category.findAll({
+          attributes: [
+            'id',
+            'name',
+            [sequelize.fn('COUNT', sequelize.col('products.id')), 'productCount']
+          ],
+          include: [{
+            model: Product,
+            as: 'products',
+            attributes: [],
+            where: { isActive: true },
+            required: false
+          }],
+          group: ['Category.id', 'Category.name'],
+          order: [[sequelize.fn('COUNT', sequelize.col('products.id')), 'DESC']],
+          limit: 5,
+          raw: true
         })
       ]);
 
       // Calculate total inventory value
-      const inventoryValue = await prisma.product.findMany({
+      const inventoryValue = await Product.findAll({
         where: { isActive: true },
-        select: { price: true, stock: true }
+        attributes: ['price', 'stock'],
+        raw: true
       });
 
-      const totalValue = inventoryValue.reduce((sum, product) => 
+      const totalValue = inventoryValue.reduce((sum: number, product: any) => 
         sum + (product.price * product.stock), 0
       );
 
       const duration = Date.now() - startTime;
       logUtils.logDbOperation('AGGREGATE', 'products', duration);
+
+      // Extract value stats from the result
+      const statsResult = valueStats[0] as any;
 
       return {
         totalProducts,
@@ -706,12 +699,12 @@ export class ProductService {
         outOfStockProducts,
         lowStockProducts,
         totalValue,
-        averagePrice: valueStats._avg.price || 0,
+        averagePrice: parseFloat(statsResult?.averagePrice || '0'),
         categoriesCount: topCategories.length,
-        topCategories: topCategories.map(cat => ({
+        topCategories: (topCategories as any[]).map(cat => ({
           categoryId: cat.id,
           categoryName: cat.name,
-          productCount: cat._count.products
+          productCount: parseInt(cat.productCount || '0')
         }))
       };
     } catch (error: any) {
@@ -729,28 +722,26 @@ export class ProductService {
   }> {
     try {
       const { page = 1, limit = 10 } = options;
-      const skip = (page - 1) * limit;
+      const offset = (page - 1) * limit;
 
-      const searchCondition: Prisma.ProductWhereInput = {
+      const searchCondition = {
         isActive: true,
-        OR: [
-          { name: { contains: query, mode: 'insensitive' } },
-          { description: { contains: query, mode: 'insensitive' } },
-          { sku: { contains: query.toUpperCase(), mode: 'insensitive' } },
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${query}%` } },
+          { description: { [Op.iLike]: `%${query}%` } },
+          { sku: { [Op.iLike]: `%${query.toUpperCase()}%` } },
         ]
       };
 
       const [products, total] = await Promise.all([
-        prisma.product.findMany({
+        Product.findAll({
           where: searchCondition,
-          include: {
-            category: true
-          },
-          orderBy: { updatedAt: 'desc' },
-          skip,
-          take: limit
+          include: [{ model: Category, as: 'category' }],
+          order: [['updatedAt', 'DESC']],
+          offset,
+          limit
         }),
-        prisma.product.count({ where: searchCondition })
+        Product.count({ where: searchCondition })
       ]);
 
       return { products, total };

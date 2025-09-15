@@ -1,5 +1,5 @@
 /**
- * Server principale dell'applicazione Express con Prisma + SQLite
+ * Server principale dell'applicazione Express con Sequelize + SQLite
  * Configura il server HTTP, database, middleware e rotte per la gestione ordini e inventario
  */
 
@@ -23,7 +23,8 @@ import {
 } from "./middleware/logging";
 
 // Database
-import { connectDatabase, checkDatabaseHealth, disconnectDatabase } from "./config/database";
+import { connectDatabase, checkDatabaseHealth, disconnectDatabase, syncModels } from "./config/database";
+import { createDemoUserIfNeeded } from "./scripts/createDemoUser";
 
 // Routes
 import usersRoutes from "./routes/userRoutes";
@@ -53,7 +54,7 @@ import { SystemMonitoringService } from "./services/systemMonitoringService";
 import { AlertService } from "./services/alertService";
 import { MonitoringScheduler } from "./services/monitoringScheduler";
 
-// Prisma models are auto-generated and imported through @prisma/client
+// Sequelize models are imported from our models directory
 
 // Caricamento delle variabili d'ambiente dal file .env
 dotenv.config();
@@ -66,12 +67,17 @@ const PORT = process.env.PORT || 3001;
 
 /**
  * Database Connection
- * Connessione al database SQLite con Prisma prima di avviare il server
+ * Connessione al database SQLite con Sequelize prima di avviare il server
  */
 const initializeDatabase = async () => {
   try {
     await connectDatabase();
-    logger.info('Prisma client initialized successfully');
+    await syncModels(); // Sync models with database
+    
+    // Crea utente demo se necessario (primo avvio)
+    await createDemoUserIfNeeded();
+    
+    logger.info('Sequelize client initialized successfully');
   } catch (error) {
     logger.error('Database initialization failed:', error);
     process.exit(1);
@@ -119,7 +125,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
  */
 app.get("/health", async (_req, res) => {
   try {
-    // Verifica connessione database Prisma
+    // Verifica connessione database Sequelize
     const dbHealthy = await checkDatabaseHealth();
     
     res.status(200).json({
@@ -197,8 +203,8 @@ app.use(errorLoggingMiddleware());
 app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
   logger.error('Server Error:', error);
 
-  // Errori di validazione Prisma
-  if (error.code === 'P2002') {
+  // Errori di validazione Sequelize
+  if (error.name === 'SequelizeUniqueConstraintError') {
     return res.status(400).json({
       error: 'Unique Constraint Error',
       message: 'A record with this value already exists',
@@ -206,8 +212,8 @@ app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
     });
   }
 
-  // Errori di record non trovato
-  if (error.code === 'P2025') {
+  // Errori di record non trovato Sequelize
+  if (error.name === 'SequelizeEmptyResultError') {
     return res.status(404).json({
       error: 'Record Not Found',
       message: 'The requested resource was not found',
@@ -215,11 +221,20 @@ app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
     });
   }
 
-  // Errori di foreign key constraint
-  if (error.code === 'P2003') {
+  // Errori di foreign key constraint Sequelize
+  if (error.name === 'SequelizeForeignKeyConstraintError') {
     return res.status(400).json({
       error: 'Foreign Key Constraint Error',
       message: 'Invalid reference to related record',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Errori di validazione Sequelize
+  if (error.name === 'SequelizeValidationError') {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: error.message,
       timestamp: new Date().toISOString()
     });
   }
@@ -337,7 +352,7 @@ const startServer = async () => {
             logger.error('Error shutting down backup scheduler', { error: error.message });
           }
           
-          // Chiudi connessione database Prisma
+          // Chiudi connessione database Sequelize
           await disconnectDatabase();
           
           logger.info('Graceful shutdown completed');

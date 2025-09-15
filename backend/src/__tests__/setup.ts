@@ -3,18 +3,21 @@
  * Global setup for Jest testing environment
  */
 
-import { PrismaClient } from '@prisma/client';
-import { execSync } from 'child_process';
+import { Sequelize } from 'sequelize';
 import path from 'path';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
 
+// Import models and enums
+import { sequelize, User, Category, Product, Order, OrderItem, ProductImage, UserAvatar, UploadedFile } from '../models';
+import { UserRole, ProductStatus, OrderStatus, PaymentStatus } from '../models';
+
 // Test database configuration
-const TEST_DATABASE_URL = 'file:./test.db';
+const TEST_DATABASE_PATH = path.join(process.cwd(), 'test.db');
 
 // Global test utilities
 declare global {
-  var testPrisma: PrismaClient;
+  var testSequelize: Sequelize;
   var testPort: number;
   var testServer: any;
 }
@@ -22,55 +25,42 @@ declare global {
 /**
  * Setup test database
  */
-export async function setupTestDatabase(): Promise<PrismaClient> {
-  // Set test database URL
-  process.env.DATABASE_URL = TEST_DATABASE_URL;
+export async function setupTestDatabase(): Promise<Sequelize> {
+  // Set test environment
   process.env.NODE_ENV = 'test';
+  process.env.DATABASE_URL = `file:${TEST_DATABASE_PATH}`;
   
   // Remove existing test database
-  const testDbPath = path.join(process.cwd(), 'test.db');
-  if (fs.existsSync(testDbPath)) {
-    fs.unlinkSync(testDbPath);
+  if (fs.existsSync(TEST_DATABASE_PATH)) {
+    fs.unlinkSync(TEST_DATABASE_PATH);
   }
   
   try {
-    // Push schema to test database
-    execSync('npx prisma db push --force-reset', {
-      stdio: 'inherit',
-      env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL }
-    });
+    // Test connection with main sequelize instance
+    await sequelize.authenticate();
+    
+    // Sync all models to create tables
+    await sequelize.sync({ force: true });
     
     console.log('✅ Test database setup completed');
+    return sequelize;
+    
   } catch (error) {
     console.error('❌ Test database setup failed:', error);
     throw error;
   }
-  
-  // Create Prisma client for tests
-  const prisma = new PrismaClient({
-    datasources: {
-      db: {
-        url: TEST_DATABASE_URL
-      }
-    }
-  });
-  
-  await prisma.$connect();
-  
-  return prisma;
 }
 
 /**
  * Cleanup test database
  */
-export async function cleanupTestDatabase(prisma: PrismaClient): Promise<void> {
+export async function cleanupTestDatabase(testSequelize: Sequelize): Promise<void> {
   try {
-    await prisma.$disconnect();
+    await testSequelize.close();
     
     // Remove test database file
-    const testDbPath = path.join(process.cwd(), 'test.db');
-    if (fs.existsSync(testDbPath)) {
-      fs.unlinkSync(testDbPath);
+    if (fs.existsSync(TEST_DATABASE_PATH)) {
+      fs.unlinkSync(TEST_DATABASE_PATH);
     }
     
     console.log('✅ Test database cleanup completed');
@@ -82,7 +72,7 @@ export async function cleanupTestDatabase(prisma: PrismaClient): Promise<void> {
 /**
  * Seed test database with sample data
  */
-export async function seedTestDatabase(prisma: PrismaClient): Promise<{
+export async function seedTestDatabase(): Promise<{
   users: any[];
   categories: any[];
   products: any[];
@@ -95,165 +85,143 @@ export async function seedTestDatabase(prisma: PrismaClient): Promise<{
     const users = [];
     
     // Admin user
-    const adminUser = await prisma.user.create({
-      data: {
-        username: 'testadmin',
-        email: 'admin@test.com',
-        password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LFTFx8/tqB5U5.Xn.', // hashed "password123"
-        firstName: 'Test',
-        lastName: 'Admin',
-        role: 'ADMIN'
-      }
+    const adminUser = await User.create({
+      username: 'testadmin',
+      email: 'admin@test.com',
+      password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LFTFx8/tqB5U5.Xn.', // hashed "password123"
+      firstName: 'Test',
+      lastName: 'Admin',
+      role: UserRole.ADMIN
     });
     users.push(adminUser);
     
     // Manager user
-    const managerUser = await prisma.user.create({
-      data: {
-        username: 'testmanager',
-        email: 'manager@test.com',
-        password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LFTFx8/tqB5U5.Xn.',
-        firstName: 'Test',
-        lastName: 'Manager',
-        role: 'MANAGER'
-      }
+    const managerUser = await User.create({
+      username: 'testmanager',
+      email: 'manager@test.com',
+      password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LFTFx8/tqB5U5.Xn.',
+      firstName: 'Test',
+      lastName: 'Manager',
+      role: UserRole.MANAGER
     });
     users.push(managerUser);
     
     // Regular user
-    const regularUser = await prisma.user.create({
-      data: {
-        username: 'testuser',
-        email: 'user@test.com',
-        password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LFTFx8/tqB5U5.Xn.',
-        firstName: 'Test',
-        lastName: 'User',
-        role: 'USER'
-      }
+    const regularUser = await User.create({
+      username: 'testuser',
+      email: 'user@test.com',
+      password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LFTFx8/tqB5U5.Xn.',
+      firstName: 'Test',
+      lastName: 'User',
+      role: UserRole.USER
     });
     users.push(regularUser);
     
     // Create test categories
     const categories = [];
     
-    const electronicsCategory = await prisma.category.create({
-      data: {
-        name: 'Electronics',
-        description: 'Electronic devices and accessories',
-        slug: 'electronics',
-        sortOrder: 0
-      }
+    const electronicsCategory = await Category.create({
+      name: 'Electronics',
+      description: 'Electronic devices and accessories',
+      slug: 'electronics',
+      sortOrder: 0
     });
     categories.push(electronicsCategory);
     
-    const computersCategory = await prisma.category.create({
-      data: {
-        name: 'Computers',
-        description: 'Desktop and laptop computers',
-        slug: 'computers',
-        parentId: electronicsCategory.id,
-        sortOrder: 0
-      }
+    const computersCategory = await Category.create({
+      name: 'Computers',
+      description: 'Desktop and laptop computers',
+      slug: 'computers',
+      parentId: electronicsCategory.id,
+      sortOrder: 0
     });
     categories.push(computersCategory);
     
-    const phonesCategory = await prisma.category.create({
-      data: {
-        name: 'Phones',
-        description: 'Smartphones and accessories',
-        slug: 'phones',
-        parentId: electronicsCategory.id,
-        sortOrder: 1
-      }
+    const phonesCategory = await Category.create({
+      name: 'Phones',
+      description: 'Smartphones and accessories',
+      slug: 'phones',
+      parentId: electronicsCategory.id,
+      sortOrder: 1
     });
     categories.push(phonesCategory);
     
     // Create test products
     const products = [];
     
-    const laptop = await prisma.product.create({
-      data: {
-        name: 'Test Laptop',
-        description: 'High-performance test laptop',
-        sku: 'TEST-LAPTOP-001',
-        barcode: '1234567890123',
-        categoryId: computersCategory.id,
-        price: 999.99,
-        costPrice: 699.99,
-        stock: 50,
-        minStock: 5,
-        maxStock: 100,
-        weight: 2500,
-        status: 'ACTIVE'
-      }
+    const laptop = await Product.create({
+      name: 'Test Laptop',
+      description: 'High-performance test laptop',
+      sku: 'TEST-LAPTOP-001',
+      barcode: '1234567890123',
+      categoryId: computersCategory.id,
+      price: 999.99,
+      costPrice: 699.99,
+      stock: 50,
+      minStock: 5,
+      maxStock: 100,
+      weight: 2500,
+      status: ProductStatus.ACTIVE
     });
     products.push(laptop);
     
-    const smartphone = await prisma.product.create({
-      data: {
-        name: 'Test Smartphone',
-        description: 'Latest test smartphone',
-        sku: 'TEST-PHONE-001',
-        barcode: '1234567890124',
-        categoryId: phonesCategory.id,
-        price: 599.99,
-        costPrice: 399.99,
-        stock: 25,
-        minStock: 3,
-        maxStock: 50,
-        weight: 200,
-        status: 'ACTIVE'
-      }
+    const smartphone = await Product.create({
+      name: 'Test Smartphone',
+      description: 'Latest test smartphone',
+      sku: 'TEST-PHONE-001',
+      barcode: '1234567890124',
+      categoryId: phonesCategory.id,
+      price: 599.99,
+      costPrice: 399.99,
+      stock: 25,
+      minStock: 3,
+      maxStock: 50,
+      weight: 200,
+      status: ProductStatus.ACTIVE
     });
     products.push(smartphone);
     
     // Create test orders
     const orders = [];
     
-    const testOrder = await prisma.order.create({
-      data: {
-        orderNumber: 'TEST-ORD-001',
-        userId: regularUser.id,
-        status: 'PENDING',
-        paymentStatus: 'PENDING',
-        subtotal: 999.99,
-        shippingCost: 10.00,
-        taxAmount: 100.00,
-        discountAmount: 0,
-        totalAmount: 1109.99,
-        currency: 'EUR',
-        shippingAddress: JSON.stringify({
-          name: 'Test User',
-          street: '123 Test Street',
-          city: 'Test City',
-          zipCode: '12345',
-          country: 'Italy'
-        }),
-        billingAddress: JSON.stringify({
-          name: 'Test User',
-          street: '123 Test Street',
-          city: 'Test City',
-          zipCode: '12345',
-          country: 'Italy'
-        }),
-        items: {
-          create: [
-            {
-              productId: laptop.id,
-              name: laptop.name,
-              sku: laptop.sku,
-              quantity: 1,
-              price: laptop.price,
-              totalPrice: laptop.price
-            }
-          ]
-        }
-      },
-      include: {
-        items: true,
-        user: true
-      }
+    const testOrder = await Order.create({
+      orderNumber: 'TEST-ORD-001',
+      userId: regularUser.id,
+      status: OrderStatus.PENDING,
+      paymentStatus: PaymentStatus.PENDING,
+      subtotal: 999.99,
+      shippingCost: 10.00,
+      taxAmount: 100.00,
+      discountAmount: 0,
+      totalAmount: 1109.99,
+      currency: 'EUR',
+      shippingAddress: JSON.stringify({
+        name: 'Test User',
+        street: '123 Test Street',
+        city: 'Test City',
+        zipCode: '12345',
+        country: 'Italy'
+      }),
+      billingAddress: JSON.stringify({
+        name: 'Test User',
+        street: '123 Test Street',
+        city: 'Test City',
+        zipCode: '12345',
+        country: 'Italy'
+      })
     });
+    
+    // Create order item
+    await OrderItem.create({
+      orderId: testOrder.id,
+      productId: laptop.id,
+      name: laptop.name,
+      sku: laptop.sku,
+      quantity: 1,
+      price: laptop.price,
+      totalPrice: laptop.price
+    });
+    
     orders.push(testOrder);
     
     console.log('✅ Test database seeded successfully');
@@ -274,17 +242,17 @@ export async function seedTestDatabase(prisma: PrismaClient): Promise<{
 /**
  * Clear test database
  */
-export async function clearTestDatabase(prisma: PrismaClient): Promise<void> {
+export async function clearTestDatabase(): Promise<void> {
   try {
     // Delete in correct order to avoid foreign key constraints
-    await prisma.orderItem.deleteMany();
-    await prisma.order.deleteMany();
-    await prisma.productImage.deleteMany();
-    await prisma.product.deleteMany();
-    await prisma.category.deleteMany();
-    await prisma.userAvatar.deleteMany();
-    await prisma.uploadedFile.deleteMany();
-    await prisma.user.deleteMany();
+    await OrderItem.destroy({ where: {}, truncate: true });
+    await Order.destroy({ where: {}, truncate: true });
+    await ProductImage.destroy({ where: {}, truncate: true });
+    await Product.destroy({ where: {}, truncate: true });
+    await Category.destroy({ where: {}, truncate: true });
+    await UserAvatar.destroy({ where: {}, truncate: true });
+    await UploadedFile.destroy({ where: {}, truncate: true });
+    await User.destroy({ where: {}, truncate: true });
     
     console.log('✅ Test database cleared');
   } catch (error) {
@@ -317,7 +285,7 @@ beforeAll(async () => {
   console.log('🧪 Setting up test environment...');
   
   // Setup test database
-  global.testPrisma = await setupTestDatabase();
+  global.testSequelize = await setupTestDatabase();
   
   // Set random test port
   global.testPort = 3001 + Math.floor(Math.random() * 1000);
@@ -339,8 +307,8 @@ afterAll(async () => {
   }
   
   // Cleanup test database
-  if (global.testPrisma) {
-    await cleanupTestDatabase(global.testPrisma);
+  if (global.testSequelize) {
+    await cleanupTestDatabase(global.testSequelize);
   }
   
   console.log('✅ Test environment cleanup completed');
@@ -350,7 +318,7 @@ afterAll(async () => {
  * Clear database before each test suite
  */
 beforeEach(async () => {
-  if (global.testPrisma) {
-    await clearTestDatabase(global.testPrisma);
+  if (global.testSequelize) {
+    await clearTestDatabase();
   }
 });

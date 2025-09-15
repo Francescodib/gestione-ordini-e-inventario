@@ -1,12 +1,13 @@
 /**
- * Order Service with Prisma ORM
+ * Order Service with Sequelize ORM
  * Comprehensive order management with workflow states and business logic
  */
 
-import { Order, OrderItem, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
-import { prisma } from '../config/database';
+import { Order, OrderItem, OrderStatus, PaymentStatus, User, Product, Category } from '../models';
+import { sequelize } from '../config/database';
 import { logger, logUtils } from '../config/logger';
 import { ProductService } from './productService';
+import { Op, Transaction, WhereOptions, FindOptions, Includeable } from 'sequelize';
 // Note: Order types are defined inline in this service for now
 // Future migration: move to ../types/order.ts
 
@@ -60,21 +61,21 @@ export interface UpdateOrderRequest {
 }
 
 export interface OrderWithDetails extends Order {
-  items: Array<OrderItem & {
-    product: {
+  items?: Array<OrderItem & {
+    product?: {
       id: string;
       name: string;
       sku: string;
       price: number;
       stock: number;
-      category: {
+      category?: {
         id: string;
         name: string;
         slug: string;
       };
     };
   }>;
-  user: {
+  user?: {
     id: string;
     email: string;
     firstName: string;
@@ -140,13 +141,12 @@ export class OrderService {
    * Create a new order
    */
   static async createOrder(orderData: CreateOrderRequest, userId: string): Promise<OrderWithDetails> {
+    const transaction = await sequelize.transaction();
     try {
       const startTime = Date.now();
 
       // Validate user exists
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
+      const user = await User.findByPk(userId, { transaction });
 
       if (!user) {
         throw new Error(`User with ID ${userId} not found`);
@@ -197,77 +197,84 @@ export class OrderService {
       // Use billing address same as shipping if not provided
       const billingAddress = orderData.billingAddress || orderData.shippingAddress;
 
-      // Create order with items in a transaction
-      const order = await prisma.$transaction(async (tx) => {
-        // Create the order
-        const newOrder = await tx.order.create({
-          data: {
-            orderNumber,
-            userId,
-            status: OrderStatus.PENDING,
-            paymentStatus: PaymentStatus.PENDING,
-            subtotal,
-            shippingCost,
-            taxAmount,
-            discountAmount,
-            totalAmount,
-            currency: orderData.currency || 'EUR',
-            shippingAddress: JSON.stringify(orderData.shippingAddress),
-            billingAddress: JSON.stringify(billingAddress),
-            notes: orderData.notes,
-            items: {
-              create: orderItems
-            }
-          },
-          include: {
-            items: {
-              include: {
-                product: {
-                  include: {
-                    category: true
+      // Create the order
+      const newOrder = await Order.create({
+        orderNumber,
+        userId,
+        status: OrderStatus.PENDING,
+        paymentStatus: PaymentStatus.PENDING,
+        subtotal,
+        shippingCost,
+        taxAmount,
+        discountAmount,
+        totalAmount,
+        currency: orderData.currency || 'EUR',
+        shippingAddress: JSON.stringify(orderData.shippingAddress),
+        billingAddress: JSON.stringify(billingAddress),
+        notes: orderData.notes,
+      }, { transaction });
+
+      // Create order items
+      const createdItems = await OrderItem.bulkCreate(
+        orderItems.map(item => ({ ...item, orderId: newOrder.id })),
+        { transaction }
+      );
+
+      // Update product stock
+      for (const item of orderItems) {
+        await ProductService.updateStock(item.productId, item.quantity, 'subtract', userId);
+      }
+
+      await transaction.commit();
+
+      // Fetch the complete order with associations
+      const order = await Order.findByPk(newOrder.id, {
+        include: [
+          {
+            model: OrderItem,
+            as: 'items',
+            include: [
+              {
+                model: Product,
+                as: 'product',
+                include: [
+                  {
+                    model: Category,
+                    as: 'category'
                   }
-                }
+                ]
               }
-            },
-            user: {
-              select: {
-                id: true,
-                email: true,
-                firstName: true,
-                lastName: true
-              }
-            }
+            ]
+          },
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'email', 'firstName', 'lastName']
           }
-        });
-
-        // Update product stock
-        for (const item of orderItems) {
-          await ProductService.updateStock(item.productId, item.quantity, 'subtract', userId);
-        }
-
-        return newOrder;
+        ]
       });
 
       const duration = Date.now() - startTime;
       logUtils.logDbOperation('CREATE', 'orders', duration);
       
       logUtils.logUserAction(userId, 'order_create', {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        totalAmount: order.totalAmount,
-        itemsCount: order.items.length
+        orderId: order!.id,
+        orderNumber: order!.orderNumber,
+        totalAmount: order!.totalAmount,
+        itemsCount: createdItems.length
       });
 
       logger.info('Order created successfully', {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
+        orderId: order!.id,
+        orderNumber: order!.orderNumber,
         userId,
-        totalAmount: order.totalAmount,
+        totalAmount: order!.totalAmount,
         duration
       });
 
       return order as OrderWithDetails;
     } catch (error: any) {
+      await transaction.rollback();
       logUtils.logDbOperation('CREATE', 'orders', undefined, error);
       logger.error('Order creation failed', {
         error: error.message,
@@ -301,20 +308,26 @@ export class OrderService {
       } = options;
 
       // Build where clause from filters
-      const whereClause: Prisma.OrderWhereInput = {
-        status: filters.status,
-        paymentStatus: filters.paymentStatus,
-        userId: filters.userId,
-      };
+      const whereClause: WhereOptions = {};
+      
+      if (filters.status) {
+        whereClause.status = filters.status;
+      }
+      if (filters.paymentStatus) {
+        whereClause.paymentStatus = filters.paymentStatus;
+      }
+      if (filters.userId) {
+        whereClause.userId = filters.userId;
+      }
 
       // Date range filter
       if (filters.dateFrom || filters.dateTo) {
         whereClause.createdAt = {};
         if (filters.dateFrom) {
-          whereClause.createdAt.gte = filters.dateFrom;
+          whereClause.createdAt[Op.gte] = filters.dateFrom;
         }
         if (filters.dateTo) {
-          whereClause.createdAt.lte = filters.dateTo;
+          whereClause.createdAt[Op.lte] = filters.dateTo;
         }
       }
 
@@ -322,70 +335,86 @@ export class OrderService {
       if (filters.minTotal !== undefined || filters.maxTotal !== undefined) {
         whereClause.totalAmount = {};
         if (filters.minTotal !== undefined) {
-          whereClause.totalAmount.gte = filters.minTotal;
+          whereClause.totalAmount[Op.gte] = filters.minTotal;
         }
         if (filters.maxTotal !== undefined) {
-          whereClause.totalAmount.lte = filters.maxTotal;
+          whereClause.totalAmount[Op.lte] = filters.maxTotal;
         }
       }
 
       // Tracking filter
       if (filters.hasTracking === true) {
-        whereClause.trackingNumber = { not: null };
+        whereClause.trackingNumber = { [Op.not]: null };
       } else if (filters.hasTracking === false) {
         whereClause.trackingNumber = null;
       }
 
       // Search filter
       if (filters.search) {
-        whereClause.OR = [
-          { orderNumber: { contains: filters.search, mode: 'insensitive' } },
+        whereClause[Op.or] = [
+          { orderNumber: { [Op.iLike]: `%${filters.search}%` } },
           { 
-            user: {
-              OR: [
-                { firstName: { contains: filters.search, mode: 'insensitive' } },
-                { lastName: { contains: filters.search, mode: 'insensitive' } },
-                { email: { contains: filters.search, mode: 'insensitive' } }
-              ]
-            }
+            '$user.firstName$': { [Op.iLike]: `%${filters.search}%` }
+          },
+          { 
+            '$user.lastName$': { [Op.iLike]: `%${filters.search}%` }
+          },
+          { 
+            '$user.email$': { [Op.iLike]: `%${filters.search}%` }
           }
         ];
       }
 
       // Calculate pagination
-      const skip = (page - 1) * limit;
+      const offset = (page - 1) * limit;
 
       // Build include clause
-      const includeClause: Prisma.OrderInclude = {
-        items: includeItems ? {
-          include: {
-            product: {
-              include: {
-                category: true
-              }
+      const includeClause: Includeable[] = [];
+      
+      if (includeItems) {
+        includeClause.push({
+          model: OrderItem,
+          as: 'items',
+          include: [
+            {
+              model: Product,
+              as: 'product',
+              include: [
+                {
+                  model: Category,
+                  as: 'category'
+                }
+              ]
             }
-          }
-        } : false,
-        user: includeUser ? {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        } : false
-      };
+          ]
+        });
+      }
+      
+      if (includeUser) {
+        includeClause.push({
+          model: User,
+          as: 'user',
+          attributes: ['id', 'email', 'firstName', 'lastName']
+        });
+      }
 
       // Execute queries in parallel
       const [orders, total] = await Promise.all([
-        prisma.order.findMany({
+        Order.findAll({
           where: whereClause,
           include: includeClause,
-          orderBy: { [sortBy]: sortOrder },
-          skip,
-          take: limit
+          order: [[sortBy, sortOrder.toUpperCase()]],
+          offset,
+          limit
         }),
-        prisma.order.count({ where: whereClause })
+        Order.count({ 
+          where: whereClause,
+          include: filters.search ? [{
+            model: User,
+            as: 'user',
+            attributes: []
+          }] : undefined
+        })
       ]);
 
       const duration = Date.now() - startTime;
@@ -413,32 +442,38 @@ export class OrderService {
     try {
       const startTime = Date.now();
 
-      const whereClause: Prisma.OrderWhereUniqueInput = { id };
+      const whereClause: WhereOptions = { id };
       
       // If userId provided, ensure user can only access their own orders (unless admin)
-      const additionalWhere: Prisma.OrderWhereInput = userId ? { userId } : {};
+      if (userId) {
+        whereClause.userId = userId;
+      }
       
-      const order = await prisma.order.findFirst({
-        where: { ...whereClause, ...additionalWhere },
-        include: {
-          items: {
-            include: {
-              product: {
-                include: {
-                  category: true
-                }
+      const order = await Order.findOne({
+        where: whereClause,
+        include: [
+          {
+            model: OrderItem,
+            as: 'items',
+            include: [
+              {
+                model: Product,
+                as: 'product',
+                include: [
+                  {
+                    model: Category,
+                    as: 'category'
+                  }
+                ]
               }
-            }
+            ]
           },
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true
-            }
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'email', 'firstName', 'lastName']
           }
-        }
+        ]
       });
 
       const duration = Date.now() - startTime;
@@ -456,32 +491,36 @@ export class OrderService {
    */
   static async getOrderByNumber(orderNumber: string, userId?: string): Promise<OrderWithDetails | null> {
     try {
-      const whereClause: any = { orderNumber };
+      const whereClause: WhereOptions = { orderNumber };
       if (userId) {
         whereClause.userId = userId;
       }
 
-      const order = await prisma.order.findFirst({
+      const order = await Order.findOne({
         where: whereClause,
-        include: {
-          items: {
-            include: {
-              product: {
-                include: {
-                  category: true
-                }
+        include: [
+          {
+            model: OrderItem,
+            as: 'items',
+            include: [
+              {
+                model: Product,
+                as: 'product',
+                include: [
+                  {
+                    model: Category,
+                    as: 'category'
+                  }
+                ]
               }
-            }
+            ]
           },
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true
-            }
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'email', 'firstName', 'lastName']
           }
-        }
+        ]
       });
 
       return order as OrderWithDetails;
@@ -495,13 +534,19 @@ export class OrderService {
    * Update order
    */
   static async updateOrder(id: string, updateData: UpdateOrderRequest, adminUserId?: string): Promise<OrderWithDetails> {
+    const transaction = await sequelize.transaction();
     try {
       const startTime = Date.now();
 
       // Check if order exists
-      const existingOrder = await prisma.order.findUnique({
-        where: { id },
-        include: { items: true }
+      const existingOrder = await Order.findByPk(id, {
+        include: [
+          {
+            model: OrderItem,
+            as: 'items'
+          }
+        ],
+        transaction
       });
 
       if (!existingOrder) {
@@ -519,34 +564,41 @@ export class OrderService {
       }
 
       // Prepare update data
-      const updatePayload: Prisma.OrderUpdateInput = {
+      const updatePayload = {
         ...updateData,
         updatedAt: new Date(),
       };
 
       // Update the order
-      const order = await prisma.order.update({
-        where: { id },
-        data: updatePayload,
-        include: {
-          items: {
-            include: {
-              product: {
-                include: {
-                  category: true
-                }
+      await existingOrder.update(updatePayload, { transaction });
+
+      await transaction.commit();
+
+      // Fetch updated order with associations
+      const order = await Order.findByPk(id, {
+        include: [
+          {
+            model: OrderItem,
+            as: 'items',
+            include: [
+              {
+                model: Product,
+                as: 'product',
+                include: [
+                  {
+                    model: Category,
+                    as: 'category'
+                  }
+                ]
               }
-            }
+            ]
           },
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true
-            }
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'email', 'firstName', 'lastName']
           }
-        }
+        ]
       });
 
       const duration = Date.now() - startTime;
@@ -554,16 +606,16 @@ export class OrderService {
 
       if (adminUserId) {
         logUtils.logUserAction(adminUserId, 'order_update', {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
+          orderId: order!.id,
+          orderNumber: order!.orderNumber,
           changes: Object.keys(updateData),
           newStatus: updateData.status
         });
       }
 
       logger.info('Order updated successfully', {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
+        orderId: order!.id,
+        orderNumber: order!.orderNumber,
         adminUserId,
         changes: Object.keys(updateData),
         duration
@@ -571,6 +623,7 @@ export class OrderService {
 
       return order as OrderWithDetails;
     } catch (error: any) {
+      await transaction.rollback();
       logUtils.logDbOperation('UPDATE', 'orders', undefined, error);
       logger.error('Order update failed', {
         error: error.message,
@@ -612,11 +665,11 @@ export class OrderService {
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
     
-    const todayOrderCount = await prisma.order.count({
+    const todayOrderCount = await Order.count({
       where: {
         createdAt: {
-          gte: startOfDay,
-          lt: endOfDay
+          [Op.gte]: startOfDay,
+          [Op.lt]: endOfDay
         }
       }
     });
@@ -633,8 +686,9 @@ export class OrderService {
       [OrderStatus.PENDING]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
       [OrderStatus.PROCESSING]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
       [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-      [OrderStatus.DELIVERED]: [], // Final state
-      [OrderStatus.CANCELLED]: [] // Final state
+      [OrderStatus.DELIVERED]: [OrderStatus.RETURNED], // Can be returned
+      [OrderStatus.CANCELLED]: [], // Final state
+      [OrderStatus.RETURNED]: [] // Final state
     };
 
     if (!allowedTransitions[currentStatus].includes(newStatus)) {
@@ -645,16 +699,18 @@ export class OrderService {
   /**
    * Restore stock when order is cancelled
    */
-  private static async restoreOrderStock(order: Order & { items: OrderItem[] }, userId?: string): Promise<void> {
+  private static async restoreOrderStock(order: Order & { items?: OrderItem[] }, userId?: string): Promise<void> {
     try {
-      for (const item of order.items) {
-        await ProductService.updateStock(item.productId, item.quantity, 'add', userId);
+      if (order.items) {
+        for (const item of order.items) {
+          await ProductService.updateStock(item.productId, item.quantity, 'add', userId);
+        }
       }
 
       logger.info('Stock restored for cancelled order', {
         orderId: order.id,
         orderNumber: order.orderNumber,
-        itemsCount: order.items.length
+        itemsCount: order.items?.length || 0
       });
     } catch (error: any) {
       logger.error('Failed to restore stock for cancelled order', {
@@ -683,55 +739,65 @@ export class OrderService {
         topProducts
       ] = await Promise.all([
         // Total orders count
-        prisma.order.count(),
+        Order.count(),
         
         // Orders by status
-        prisma.order.groupBy({
-          by: ['status'],
-          _count: { status: true }
+        Order.findAll({
+          attributes: [
+            'status',
+            [sequelize.fn('COUNT', sequelize.col('status')), 'count']
+          ],
+          group: ['status'],
+          raw: true
         }),
         
         // Revenue statistics
-        prisma.order.aggregate({
-          _sum: { totalAmount: true },
-          _avg: { totalAmount: true },
+        Order.findAll({
+          attributes: [
+            [sequelize.fn('SUM', sequelize.col('totalAmount')), 'totalRevenue'],
+            [sequelize.fn('AVG', sequelize.col('totalAmount')), 'averageOrderValue']
+          ],
           where: {
-            status: { not: OrderStatus.CANCELLED }
-          }
+            status: { [Op.not]: OrderStatus.CANCELLED }
+          },
+          raw: true
         }),
         
         // Top selling products
-        prisma.orderItem.groupBy({
-          by: ['productId'],
-          _sum: {
-            quantity: true,
-            totalPrice: true
-          },
-          orderBy: {
-            _sum: {
-              totalPrice: 'desc'
-            }
-          },
-          take: 10
+        OrderItem.findAll({
+          attributes: [
+            'productId',
+            [sequelize.fn('SUM', sequelize.col('quantity')), 'totalQuantity'],
+            [sequelize.fn('SUM', sequelize.col('totalPrice')), 'totalRevenue']
+          ],
+          group: ['productId'],
+          order: [[sequelize.fn('SUM', sequelize.col('totalPrice')), 'DESC']],
+          limit: 10,
+          raw: true
         })
       ]);
 
       // Process status counts
-      const statusMap = statusCounts.reduce((acc, item) => {
-        acc[item.status] = item._count.status;
+      const statusMap = (statusCounts as any[]).reduce((acc, item) => {
+        acc[item.status] = parseInt(item.count);
         return acc;
       }, {} as Record<OrderStatus, number>);
 
+      // Process revenue stats
+      const revenueData = revenueStats[0] as any;
+      const totalRevenue = parseFloat(revenueData?.totalRevenue || '0');
+      const averageOrderValue = parseFloat(revenueData?.averageOrderValue || '0');
+
       // Get product details for top products
       const topProductsWithDetails = await Promise.all(
-        topProducts.map(async (item) => {
+        (topProducts as any[]).map(async (item) => {
           const product = await ProductService.getProductById(item.productId);
           return {
             productId: item.productId,
             productName: product?.name || 'Unknown Product',
             sku: product?.sku || 'N/A',
-            totalQuantity: item._sum.quantity || 0,
-            totalRevenue: item._sum.totalPrice || 0
+            totalQuantity: parseInt(item.totalQuantity || '0'),
+            totalRevenue: parseFloat(item.totalRevenue || '0')
           };
         })
       );
@@ -749,8 +815,8 @@ export class OrderService {
         shippedOrders: statusMap[OrderStatus.SHIPPED] || 0,
         deliveredOrders: statusMap[OrderStatus.DELIVERED] || 0,
         cancelledOrders: statusMap[OrderStatus.CANCELLED] || 0,
-        totalRevenue: revenueStats._sum.totalAmount || 0,
-        averageOrderValue: revenueStats._avg.totalAmount || 0,
+        totalRevenue,
+        averageOrderValue,
         topProducts: topProductsWithDetails,
         revenueByMonth: monthlyRevenue
       };
@@ -771,22 +837,26 @@ export class OrderService {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
       
-      const monthStats = await prisma.order.aggregate({
-        _sum: { totalAmount: true },
-        _count: { id: true },
+      const monthStats = await Order.findAll({
+        attributes: [
+          [sequelize.fn('SUM', sequelize.col('totalAmount')), 'revenue'],
+          [sequelize.fn('COUNT', sequelize.col('id')), 'orderCount']
+        ],
         where: {
           createdAt: {
-            gte: date,
-            lt: nextMonth
+            [Op.gte]: date,
+            [Op.lt]: nextMonth
           },
-          status: { not: OrderStatus.CANCELLED }
-        }
+          status: { [Op.not]: OrderStatus.CANCELLED }
+        },
+        raw: true
       });
 
+      const stats = monthStats[0] as any;
       months.push({
         month: date.toLocaleDateString('it-IT', { year: 'numeric', month: 'short' }),
-        revenue: monthStats._sum.totalAmount || 0,
-        orderCount: monthStats._count.id || 0
+        revenue: parseFloat(stats?.revenue || '0'),
+        orderCount: parseInt(stats?.orderCount || '0')
       });
     }
 

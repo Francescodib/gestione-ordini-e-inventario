@@ -19,7 +19,7 @@ beforeAll(async () => {
   app.use('/api/search', searchRoutes);
   
   // Initialize test helper
-  testHelper = new ApiTestHelper(app, global.testPrisma);
+  testHelper = new ApiTestHelper(app, (global as any).testSequelize);
   await testHelper.initialize();
 });
 

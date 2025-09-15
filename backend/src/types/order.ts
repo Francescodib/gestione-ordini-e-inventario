@@ -3,7 +3,7 @@
  * All types related to order management and workflow
  */
 
-import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '../models';
 
 // Define PaymentMethod locally since it's not in Prisma
 export enum PaymentMethod {

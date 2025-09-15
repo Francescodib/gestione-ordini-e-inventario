@@ -4,7 +4,7 @@
  */
 
 import * as si from 'systeminformation';
-import { PrismaClient } from '@prisma/client';
+import { sequelize, User, Product, Order } from '../models';
 import client from 'prom-client';
 import { logger } from '../config/logger';
 import { 
@@ -13,8 +13,6 @@ import {
   formatPercentage, 
   formatUptime 
 } from '../config/monitoring';
-
-const prisma = new PrismaClient();
 
 export interface SystemMetrics {
   timestamp: Date;
@@ -313,14 +311,18 @@ export class SystemMonitoringService {
    */
   private async collectDatabaseMetrics() {
     try {
-      // Check database connection using queryRaw for SQLite compatibility
-      await prisma.$queryRaw`SELECT 1 as test`;
+      // Check database connection using Sequelize query
+      await sequelize.query('SELECT 1 as test', { raw: true });
+
+      // Get connection pool information
+      const pool = (sequelize.connectionManager as any).pool;
+      const connectionCount = pool ? pool.size : 1;
 
       return {
-        connectionCount: 1, // Prisma manages connections internally
-        activeQueries: 0,
-        totalQueries: 0,
-        averageQueryTime: 0,
+        connectionCount,
+        activeQueries: 0, // Sequelize doesn't directly expose active query count
+        totalQueries: 0, // Would need custom tracking
+        averageQueryTime: 0, // Would need custom tracking
         errorRate: 0
       };
     } catch (error: any) {
@@ -347,25 +349,18 @@ export class SystemMonitoringService {
         activeProducts,
         totalOrders,
         pendingOrders,
-        revenueData
+        revenueResult,
+        inventoryResult
       ] = await Promise.all([
-        prisma.user.count(),
-        prisma.user.count({ where: { isActive: true } }),
-        prisma.product.count(),
-        prisma.product.count({ where: { isActive: true } }),
-        prisma.order.count(),
-        prisma.order.count({ where: { status: 'PENDING' } }),
-        prisma.order.aggregate({
-          _sum: { totalAmount: true },
-          where: { status: 'DELIVERED' }
-        })
+        User.count(),
+        User.count({ where: { isActive: true } }),
+        Product.count(),
+        Product.count({ where: { isActive: true } }),
+        Order.count(),
+        Order.count({ where: { status: 'PENDING' } }),
+        Order.sum('totalAmount', { where: { status: 'DELIVERED' } }),
+        Product.sum('price', { where: { isActive: true } })
       ]);
-      
-      // Calculate inventory value
-      const inventoryValue = await prisma.product.aggregate({
-        _sum: { price: true },
-        where: { isActive: true }
-      });
       
       return {
         totalUsers,
@@ -374,8 +369,8 @@ export class SystemMonitoringService {
         activeProducts,
         totalOrders,
         pendingOrders,
-        totalRevenue: revenueData._sum.totalAmount || 0,
-        inventoryValue: inventoryValue._sum.price || 0
+        totalRevenue: revenueResult || 0,
+        inventoryValue: inventoryResult || 0
       };
     } catch (error: any) {
       logger.error('Business metrics collection failed', { error: error.message });
@@ -426,7 +421,8 @@ export class SystemMonitoringService {
     const startTime = Date.now();
 
     try {
-      await prisma.$queryRaw`SELECT 1 as test`;
+      // Test database connection with Sequelize
+      await sequelize.authenticate();
       const responseTime = Date.now() - startTime;
 
       return {
@@ -434,7 +430,12 @@ export class SystemMonitoringService {
         status: responseTime < 1000 ? 'healthy' : 'degraded',
         message: `Database connection successful (${responseTime}ms)`,
         timestamp: new Date(),
-        responseTime
+        responseTime,
+        details: {
+          dialect: sequelize.getDialect(),
+          storage: (sequelize.config as any).storage || (sequelize as any).options?.storage,
+          poolSize: (sequelize.connectionManager as any).pool ? (sequelize.connectionManager as any).pool.size : 1
+        }
       };
     } catch (error: any) {
       return {

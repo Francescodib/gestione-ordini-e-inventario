@@ -21,7 +21,7 @@ import {
   paginationSchema
 } from '../validation/schemas';
 import Joi from 'joi';
-import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '../models';
 
 // Initialize router
 const router = express.Router();

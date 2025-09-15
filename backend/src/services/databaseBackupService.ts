@@ -8,7 +8,17 @@ import path from 'path';
 import archiver from 'archiver';
 import crypto from 'crypto';
 import yauzl from 'yauzl';
-import { PrismaClient } from '@prisma/client';
+import { sequelize } from '../config/sequelize';
+import { 
+  User, 
+  Category, 
+  Product, 
+  Order, 
+  OrderItem, 
+  ProductImage, 
+  UserAvatar, 
+  UploadedFile 
+} from '../models';
 import { logger } from '../config/logger';
 import { 
   BackupConfig, 
@@ -18,8 +28,6 @@ import {
   shouldKeepBackup,
   getRetentionDate
 } from '../config/backup';
-
-const prisma = new PrismaClient();
 
 export interface DatabaseBackupResult {
   success: boolean;
@@ -139,15 +147,29 @@ export class DatabaseBackupService {
    */
   private static async getDatabasePath(): Promise<string | null> {
     try {
-      // For SQLite, get the database URL from environment
-      const dbUrl = process.env.DATABASE_URL;
-      if (!dbUrl) {
-        throw new Error('DATABASE_URL not found');
+      // Get the database storage path from Sequelize configuration
+      const config = sequelize.config as any;
+      const storage = config?.storage;
+      
+      if (!storage || typeof storage !== 'string') {
+        // Fallback to environment variable approach
+        const dbUrl = process.env.DATABASE_URL;
+        if (!dbUrl) {
+          throw new Error('Database storage path not found in Sequelize configuration and DATABASE_URL not set');
+        }
+        
+        // Extract file path from database URL (file:./dev.db -> ./dev.db)
+        const filePath = dbUrl.replace('file:', '');
+        const fullPath = path.resolve(filePath);
+        
+        if (await fs.pathExists(fullPath)) {
+          return fullPath;
+        }
+        
+        return null;
       }
       
-      // Extract file path from database URL (file:./dev.db -> ./dev.db)
-      const filePath = dbUrl.replace('file:', '');
-      const fullPath = path.resolve(filePath);
+      const fullPath = path.resolve(storage);
       
       // Check if file exists
       if (await fs.pathExists(fullPath)) {
@@ -172,16 +194,16 @@ export class DatabaseBackupService {
         recordCounts: {}
       };
       
-      // Get all table names and record counts
+      // Get all table names and record counts using Sequelize models
       const tableQueries = [
-        { name: 'users', query: () => prisma.user.count() },
-        { name: 'categories', query: () => prisma.category.count() },
-        { name: 'products', query: () => prisma.product.count() },
-        { name: 'orders', query: () => prisma.order.count() },
-        { name: 'orderItems', query: () => prisma.orderItem.count() },
-        { name: 'productImages', query: () => prisma.productImage.count() },
-        { name: 'userAvatars', query: () => prisma.userAvatar.count() },
-        { name: 'uploadedFiles', query: () => prisma.uploadedFile.count() }
+        { name: 'users', query: () => User.count() },
+        { name: 'categories', query: () => Category.count() },
+        { name: 'products', query: () => Product.count() },
+        { name: 'orders', query: () => Order.count() },
+        { name: 'orderItems', query: () => OrderItem.count() },
+        { name: 'productImages', query: () => ProductImage.count() },
+        { name: 'userAvatars', query: () => UserAvatar.count() },
+        { name: 'uploadedFiles', query: () => UploadedFile.count() }
       ];
       
       for (const table of tableQueries) {
@@ -294,8 +316,8 @@ export class DatabaseBackupService {
       const backupCurrentPath = `${currentDbPath}.backup.${Date.now()}`;
       await fs.copy(currentDbPath, backupCurrentPath);
       
-      // Close Prisma connection
-      await prisma.$disconnect();
+      // Close Sequelize connection
+      await sequelize.close();
       
       try {
         // Restore database
@@ -317,8 +339,12 @@ export class DatabaseBackupService {
         await fs.copy(backupCurrentPath, currentDbPath);
         throw restoreError;
       } finally {
-        // Reconnect Prisma
-        await prisma.$connect();
+        // Reconnect Sequelize
+        try {
+          await sequelize.authenticate();
+        } catch (reconnectError: any) {
+          logger.error('Failed to reconnect to database after restore', { error: reconnectError.message });
+        }
         
         // Clean up temporary backup
         await fs.remove(backupCurrentPath);

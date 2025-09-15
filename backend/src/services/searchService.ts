@@ -3,8 +3,8 @@
  * Unified search across products, categories, orders, and users
  */
 
-import { Product, Category, Order, User, Prisma } from '@prisma/client';
-import { prisma } from '../config/database';
+import { Op } from 'sequelize';
+import { Product, Category, Order, User, OrderItem } from '../models';
 import { logger, logUtils } from '../config/logger';
 // Note: Search types are defined inline in this service for now
 // Future migration: move to ../types/search.ts
@@ -172,22 +172,22 @@ export class SearchService {
           
           switch (entityType) {
             case 'products':
-              searchResults.push(...entityResults.products.map(this.productToSearchResult));
+              searchResults.push(...entityResults.products.map((product: any) => this.productToSearchResult(product)));
               totalByType.products = entityResults.total;
               break;
             case 'categories':
-              searchResults.push(...entityResults.categories.map(this.categoryToSearchResult));
+              searchResults.push(...entityResults.categories.map((category: any) => this.categoryToSearchResult(category)));
               totalByType.categories = entityResults.total;
               break;
             case 'orders':
               if (userRole === 'ADMIN' || userRole === 'MANAGER') {
-                searchResults.push(...entityResults.orders.map(this.orderToSearchResult));
+                searchResults.push(...entityResults.orders.map((order: any) => this.orderToSearchResult(order)));
                 totalByType.orders = entityResults.total;
               }
               break;
             case 'users':
               if (userRole === 'ADMIN') {
-                searchResults.push(...entityResults.users.map(this.userToSearchResult));
+                searchResults.push(...entityResults.users.map((user: any) => this.userToSearchResult(user)));
                 totalByType.users = entityResults.total;
               }
               break;
@@ -268,74 +268,94 @@ export class SearchService {
         includeRelated = false
       } = options;
 
-      const skip = (page - 1) * limit;
+      const offset = (page - 1) * limit;
       const searchTerms = query.split(' ').filter(term => term.length > 2);
 
-      // Build search conditions
-      const searchConditions: Prisma.ProductWhereInput[] = searchTerms.map(term => ({
-        OR: [
-          { name: { contains: term } },
-          { description: { contains: term } },
-          { sku: { contains: term } },
-          { tags: { contains: term } },
-          { category: { name: { contains: term } } },
-          { category: { description: { contains: term } } }
+      // Build search conditions using Sequelize Op.iLike for case-insensitive search
+      const searchConditions = searchTerms.map(term => ({
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${term}%` } },
+          { description: { [Op.iLike]: `%${term}%` } },
+          { sku: { [Op.iLike]: `%${term}%` } },
+          { tags: { [Op.iLike]: `%${term}%` } },
+          { '$category.name$': { [Op.iLike]: `%${term}%` } },
+          { '$category.description$': { [Op.iLike]: `%${term}%` } }
         ]
       }));
 
-      const whereClause: Prisma.ProductWhereInput = {
-        AND: [
+      // Build where clause
+      const whereClause: any = {
+        [Op.and]: [
           { isActive: true },
-          ...searchConditions,
-          // Apply filters
-          filters.priceRange ? {
-            price: {
-              gte: filters.priceRange.min,
-              lte: filters.priceRange.max
-            }
-          } : {},
-          filters.categoryIds ? {
-            categoryId: { in: filters.categoryIds }
-          } : {},
-          filters.inStock !== undefined ? {
-            stock: filters.inStock ? { gt: 0 } : { lte: 0 }
-          } : {},
-          filters.status ? {
-            status: { in: filters.status }
-          } : {}
+          ...searchConditions
         ]
       };
 
-      // Determine sort order
-      let orderBy: Prisma.ProductOrderByWithRelationInput = { createdAt: 'desc' };
-      if (sortBy === 'price') {
-        orderBy = { price: sortOrder as any };
-      } else if (sortBy === 'name') {
-        orderBy = { name: sortOrder as any };
-      } else if (sortBy === 'date') {
-        orderBy = { createdAt: sortOrder as any };
+      // Apply filters
+      if (filters.priceRange) {
+        if (filters.priceRange.min !== undefined) {
+          whereClause[Op.and].push({ price: { [Op.gte]: filters.priceRange.min } });
+        }
+        if (filters.priceRange.max !== undefined) {
+          whereClause[Op.and].push({ price: { [Op.lte]: filters.priceRange.max } });
+        }
       }
 
-      // Execute search
-      const [products, total] = await Promise.all([
-        prisma.product.findMany({
-          where: whereClause,
-          include: {
-            category: true,
-            ...(includeRelated ? {
-              orderItems: {
-                take: 3,
-                orderBy: { order: { createdAt: 'desc' } },
-                include: { order: { select: { orderNumber: true, status: true } } }
-              }
-            } : {})
-          },
-          orderBy,
-          skip,
-          take: limit
-        }),
-        prisma.product.count({ where: whereClause })
-      ]);
+      if (filters.categoryIds) {
+        whereClause[Op.and].push({ categoryId: { [Op.in]: filters.categoryIds } });
+      }
+
+      if (filters.inStock !== undefined) {
+        whereClause[Op.and].push({
+          stock: filters.inStock ? { [Op.gt]: 0 } : { [Op.lte]: 0 }
+        });
+      }
+
+      if (filters.status) {
+        whereClause[Op.and].push({ status: { [Op.in]: filters.status } });
+      }
+
+      // Determine sort order
+      let order: any[] = [['createdAt', 'DESC']];
+      if (sortBy === 'price') {
+        order = [['price', sortOrder.toUpperCase()]];
+      } else if (sortBy === 'name') {
+        order = [['name', sortOrder.toUpperCase()]];
+      } else if (sortBy === 'date') {
+        order = [['createdAt', sortOrder.toUpperCase()]];
+      }
+
+      // Build include options
+      const includeOptions: any[] = [
+        {
+          model: Category,
+          as: 'category',
+          attributes: ['id', 'name', 'description', 'slug']
+        }
+      ];
+
+      if (includeRelated) {
+        includeOptions.push({
+          model: OrderItem,
+          as: 'orderItems',
+          limit: 3,
+          include: [{
+            model: Order,
+            as: 'order',
+            attributes: ['orderNumber', 'status']
+          }],
+          order: [['createdAt', 'DESC']]
+        });
+      }
+
+      // Execute search using findAndCountAll
+      const { rows: products, count: total } = await Product.findAndCountAll({
+        where: whereClause,
+        include: includeOptions,
+        order,
+        offset,
+        limit
+      });
 
       return { products, total, page, limit };
 
@@ -365,52 +385,86 @@ export class SearchService {
         includeRelated = false
       } = options;
 
-      const skip = (page - 1) * limit;
+      const offset = (page - 1) * limit;
       const searchTerms = query.split(' ').filter(term => term.length > 2);
 
-      const searchConditions: Prisma.CategoryWhereInput[] = searchTerms.map(term => ({
-        OR: [
-          { name: { contains: term } },
-          { description: { contains: term } },
-          { slug: { contains: term } }
+      // Build search conditions using Sequelize Op.iLike for case-insensitive search
+      const searchConditions = searchTerms.map(term => ({
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${term}%` } },
+          { description: { [Op.iLike]: `%${term}%` } },
+          { slug: { [Op.iLike]: `%${term}%` } }
         ]
       }));
 
-      const whereClause: Prisma.CategoryWhereInput = {
-        AND: [
+      const whereClause: any = {
+        [Op.and]: [
           { isActive: true },
           ...searchConditions
         ]
       };
 
-      let orderBy: Prisma.CategoryOrderByWithRelationInput = { createdAt: 'desc' };
+      // Determine sort order
+      let order: any[] = [['createdAt', 'DESC']];
       if (sortBy === 'name') {
-        orderBy = { name: sortOrder as any };
+        order = [['name', sortOrder.toUpperCase()]];
       }
 
-      const [categories, total] = await Promise.all([
-        prisma.category.findMany({
-          where: whereClause,
-          include: {
-            parent: true,
-            children: { where: { isActive: true }, take: 5 },
-            _count: { select: { products: true, children: true } },
-            ...(includeRelated ? {
-              products: {
-                where: { isActive: true },
-                take: 3,
-                select: { id: true, name: true, price: true, sku: true }
-              }
-            } : {})
-          },
-          orderBy,
-          skip,
-          take: limit
-        }),
-        prisma.category.count({ where: whereClause })
-      ]);
+      // Build include options for hierarchical data
+      const includeOptions: any[] = [
+        {
+          model: Category,
+          as: 'parent',
+          attributes: ['id', 'name', 'slug']
+        },
+        {
+          model: Category,
+          as: 'children',
+          where: { isActive: true },
+          required: false,
+          limit: 5,
+          attributes: ['id', 'name', 'slug', 'description']
+        }
+      ];
 
-      return { categories, total, page, limit };
+      if (includeRelated) {
+        includeOptions.push({
+          model: Product,
+          as: 'products',
+          where: { isActive: true },
+          required: false,
+          limit: 3,
+          attributes: ['id', 'name', 'price', 'sku']
+        });
+      }
+
+      // Execute search using findAndCountAll
+      const { rows: categories, count: total } = await Category.findAndCountAll({
+        where: whereClause,
+        include: includeOptions,
+        order,
+        offset,
+        limit,
+        distinct: true // Important for correct count with includes
+      });
+
+      // Add counts manually since Sequelize doesn't have direct _count equivalent
+      const categoriesWithCounts = await Promise.all(categories.map(async (category: any) => {
+        const [productCount, childrenCount] = await Promise.all([
+          Product.count({ where: { categoryId: category.id, isActive: true } }),
+          Category.count({ where: { parentId: category.id, isActive: true } })
+        ]);
+
+        return {
+          ...category.toJSON(),
+          _count: {
+            products: productCount,
+            children: childrenCount
+          }
+        };
+      }));
+
+      return { categories: categoriesWithCounts, total, page, limit };
 
     } catch (error: any) {
       logUtils.logDbOperation('SEARCH', 'categories', undefined, error);
@@ -438,56 +492,85 @@ export class SearchService {
         userId
       } = options;
 
-      const skip = (page - 1) * limit;
+      const offset = (page - 1) * limit;
 
-      const whereClause: Prisma.OrderWhereInput = {
-        AND: [
-          userId ? { userId } : {},
+      // Build where clause for orders
+      const whereClause: any = {
+        [Op.and]: [
+          ...(userId ? [{ userId }] : []),
           {
-            OR: [
-              { orderNumber: { contains: query } },
-              { user: { firstName: { contains: query } } },
-              { user: { lastName: { contains: query } } },
-              { user: { email: { contains: query } } },
-              { notes: { contains: query } }
+            [Op.or]: [
+              { orderNumber: { [Op.iLike]: `%${query}%` } },
+              { '$user.firstName$': { [Op.iLike]: `%${query}%` } },
+              { '$user.lastName$': { [Op.iLike]: `%${query}%` } },
+              { '$user.email$': { [Op.iLike]: `%${query}%` } },
+              { notes: { [Op.iLike]: `%${query}%` } }
             ]
-          },
-          filters.status ? { status: { in: filters.status } } : {},
-          filters.dateRange ? {
-            createdAt: {
-              gte: filters.dateRange.from,
-              lte: filters.dateRange.to
-            }
-          } : {}
+          }
         ]
       };
 
-      let orderBy: Prisma.OrderOrderByWithRelationInput = { createdAt: 'desc' };
-      if (sortBy === 'total') {
-        orderBy = { totalAmount: sortOrder as any };
+      // Apply filters
+      if (filters.status) {
+        whereClause[Op.and].push({ status: { [Op.in]: filters.status } });
       }
 
-      const [orders, total] = await Promise.all([
-        prisma.order.findMany({
-          where: whereClause,
-          include: {
-            user: { select: { id: true, firstName: true, lastName: true, email: true } },
-            items: {
-              take: 3,
-              include: {
-                product: { select: { id: true, name: true, sku: true } }
-              }
-            },
-            _count: { select: { items: true } }
-          },
-          orderBy,
-          skip,
-          take: limit
-        }),
-        prisma.order.count({ where: whereClause })
-      ]);
+      if (filters.dateRange) {
+        const dateFilter: any = {};
+        if (filters.dateRange.from) {
+          dateFilter[Op.gte] = filters.dateRange.from;
+        }
+        if (filters.dateRange.to) {
+          dateFilter[Op.lte] = filters.dateRange.to;
+        }
+        whereClause[Op.and].push({ createdAt: dateFilter });
+      }
 
-      return { orders, total, page, limit };
+      // Determine sort order
+      let order: any[] = [['createdAt', 'DESC']];
+      if (sortBy === 'total') {
+        order = [['totalAmount', sortOrder.toUpperCase()]];
+      }
+
+      // Execute search using findAndCountAll
+      const { rows: orders, count: total } = await Order.findAndCountAll({
+        where: whereClause,
+        include: [
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'firstName', 'lastName', 'email']
+          },
+          {
+            model: OrderItem,
+            as: 'items',
+            limit: 3,
+            include: [{
+              model: Product,
+              as: 'product',
+              attributes: ['id', 'name', 'sku']
+            }]
+          }
+        ],
+        order,
+        offset,
+        limit,
+        distinct: true // Important for correct count with includes
+      });
+
+      // Add counts manually since Sequelize doesn't have direct _count equivalent
+      const ordersWithCounts = await Promise.all(orders.map(async (order: any) => {
+        const itemsCount = await OrderItem.count({ where: { orderId: order.id } });
+
+        return {
+          ...order.toJSON(),
+          _count: {
+            items: itemsCount
+          }
+        };
+      }));
+
+      return { orders: ordersWithCounts, total, page, limit };
 
     } catch (error: any) {
       logUtils.logDbOperation('SEARCH', 'orders', undefined, error);
@@ -514,54 +597,69 @@ export class SearchService {
         filters = {}
       } = options;
 
-      const skip = (page - 1) * limit;
+      const offset = (page - 1) * limit;
 
-      const whereClause: Prisma.UserWhereInput = {
-        AND: [
+      // Build where clause for users
+      const whereClause: any = {
+        [Op.and]: [
           { isActive: true },
           {
-            OR: [
-              { firstName: { contains: query } },
-              { lastName: { contains: query } },
-              { email: { contains: query } },
-              { username: { contains: query } }
+            [Op.or]: [
+              { firstName: { [Op.iLike]: `%${query}%` } },
+              { lastName: { [Op.iLike]: `%${query}%` } },
+              { email: { [Op.iLike]: `%${query}%` } },
+              { username: { [Op.iLike]: `%${query}%` } }
             ]
-          },
-          filters.role ? { role: { in: filters.role } } : {}
+          }
         ]
       };
 
-      let orderBy: Prisma.UserOrderByWithRelationInput = { firstName: 'asc' };
-      if (sortBy === 'date') {
-        orderBy = { createdAt: sortOrder as any };
-      } else if (sortBy === 'email') {
-        orderBy = { email: sortOrder as any };
+      // Apply filters
+      if (filters.role) {
+        whereClause[Op.and].push({ role: { [Op.in]: filters.role } });
       }
 
-      const [users, total] = await Promise.all([
-        prisma.user.findMany({
-          where: whereClause,
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-            isActive: true,
-            emailVerified: true,
-            lastLogin: true,
-            createdAt: true,
-            _count: { select: { orders: true } }
-          },
-          orderBy,
-          skip,
-          take: limit
-        }),
-        prisma.user.count({ where: whereClause })
-      ]);
+      // Determine sort order
+      let order: any[] = [['firstName', 'ASC']];
+      if (sortBy === 'date') {
+        order = [['createdAt', sortOrder.toUpperCase()]];
+      } else if (sortBy === 'email') {
+        order = [['email', sortOrder.toUpperCase()]];
+      }
 
-      return { users, total, page, limit };
+      // Execute search using findAndCountAll
+      const { rows: users, count: total } = await User.findAndCountAll({
+        where: whereClause,
+        attributes: [
+          'id',
+          'username',
+          'email',
+          'firstName',
+          'lastName',
+          'role',
+          'isActive',
+          'emailVerified',
+          'lastLogin',
+          'createdAt'
+        ],
+        order,
+        offset,
+        limit
+      });
+
+      // Add counts manually since Sequelize doesn't have direct _count equivalent
+      const usersWithCounts = await Promise.all(users.map(async (user: any) => {
+        const ordersCount = await Order.count({ where: { userId: user.id } });
+
+        return {
+          ...user.toJSON(),
+          _count: {
+            orders: ordersCount
+          }
+        };
+      }));
+
+      return { users: usersWithCounts, total, page, limit };
 
     } catch (error: any) {
       logUtils.logDbOperation('SEARCH', 'users', undefined, error);
@@ -581,26 +679,26 @@ export class SearchService {
       if (query.length < 3) return [];
 
       // Get product suggestions
-      const productSuggestions = await prisma.product.findMany({
+      const productSuggestions = await Product.findAll({
         where: {
           isActive: true,
-          OR: [
-            { name: { contains: query } },
-            { sku: { contains: query } }
+          [Op.or]: [
+            { name: { [Op.iLike]: `%${query}%` } },
+            { sku: { [Op.iLike]: `%${query}%` } }
           ]
         },
-        select: { name: true, sku: true },
-        take: 5
+        attributes: ['name', 'sku'],
+        limit: 5
       });
 
       // Get category suggestions
-      const categorySuggestions = await prisma.category.findMany({
+      const categorySuggestions = await Category.findAll({
         where: {
           isActive: true,
-          name: { contains: query }
+          name: { [Op.iLike]: `%${query}%` }
         },
-        select: { name: true },
-        take: 3
+        attributes: ['name'],
+        limit: 3
       });
 
       const suggestions = [
@@ -627,28 +725,28 @@ export class SearchService {
       const suggestions: string[] = [];
 
       if (!type || type === 'products') {
-        const products = await prisma.product.findMany({
+        const products = await Product.findAll({
           where: {
             isActive: true,
-            OR: [
-              { name: { startsWith: query } },
-              { sku: { startsWith: query } }
+            [Op.or]: [
+              { name: { [Op.iLike]: `${query}%` } },
+              { sku: { [Op.iLike]: `${query}%` } }
             ]
           },
-          select: { name: true, sku: true },
-          take: 5
+          attributes: ['name', 'sku'],
+          limit: 5
         });
         suggestions.push(...products.map(p => p.name), ...products.map(p => p.sku));
       }
 
       if (!type || type === 'categories') {
-        const categories = await prisma.category.findMany({
+        const categories = await Category.findAll({
           where: {
             isActive: true,
-            name: { startsWith: query }
+            name: { [Op.iLike]: `${query}%` }
           },
-          select: { name: true },
-          take: 3
+          attributes: ['name'],
+          limit: 3
         });
         suggestions.push(...categories.map(c => c.name));
       }
@@ -669,22 +767,35 @@ export class SearchService {
    * Convert product to search result
    */
   private static productToSearchResult(product: any): SearchResultItem {
+    // Convert Sequelize model to plain object if needed
+    const productData = product.toJSON ? product.toJSON() : product;
+    
+    // Parse images array from JSON string if needed
+    let imagesArray: string[] = [];
+    if (productData.images) {
+      try {
+        imagesArray = typeof productData.images === 'string' ? JSON.parse(productData.images) : productData.images;
+      } catch {
+        imagesArray = [];
+      }
+    }
+
     return {
-      id: product.id,
+      id: productData.id,
       type: 'product',
-      title: product.name,
-      description: product.description,
-      subtitle: `€${product.price} • ${product.category?.name || 'No Category'} • Stock: ${product.stock}`,
-      url: `/products/${product.id}`,
-      imageUrl: product.images?.[0] || null,
+      title: productData.name,
+      description: productData.description,
+      subtitle: `€${productData.price} • ${productData.category?.name || 'No Category'} • Stock: ${productData.stock}`,
+      url: `/products/${productData.id}`,
+      imageUrl: imagesArray[0] || undefined,
       metadata: {
-        price: product.price,
-        stock: product.stock,
-        sku: product.sku,
-        category: product.category?.name,
-        status: product.status
+        price: productData.price,
+        stock: productData.stock,
+        sku: productData.sku,
+        category: productData.category?.name,
+        status: productData.status
       },
-      relevanceScore: SearchService.calculateRelevanceScore('product', product)
+      relevanceScore: SearchService.calculateRelevanceScore('product', productData)
     };
   }
 
@@ -692,20 +803,23 @@ export class SearchService {
    * Convert category to search result
    */
   private static categoryToSearchResult(category: any): SearchResultItem {
+    // Convert Sequelize model to plain object if needed
+    const categoryData = category.toJSON ? category.toJSON() : category;
+
     return {
-      id: category.id,
+      id: categoryData.id,
       type: 'category',
-      title: category.name,
-      description: category.description,
-      subtitle: `${category._count?.products || 0} products • ${category.parent?.name ? `Parent: ${category.parent.name}` : 'Root category'}`,
-      url: `/categories/${category.slug}`,
+      title: categoryData.name,
+      description: categoryData.description,
+      subtitle: `${categoryData._count?.products || 0} products • ${categoryData.parent?.name ? `Parent: ${categoryData.parent.name}` : 'Root category'}`,
+      url: `/categories/${categoryData.slug}`,
       metadata: {
-        slug: category.slug,
-        productCount: category._count?.products || 0,
-        childrenCount: category._count?.children || 0,
-        parent: category.parent?.name
+        slug: categoryData.slug,
+        productCount: categoryData._count?.products || 0,
+        childrenCount: categoryData._count?.children || 0,
+        parent: categoryData.parent?.name
       },
-      relevanceScore: SearchService.calculateRelevanceScore('category', category)
+      relevanceScore: SearchService.calculateRelevanceScore('category', categoryData)
     };
   }
 
@@ -713,22 +827,25 @@ export class SearchService {
    * Convert order to search result
    */
   private static orderToSearchResult(order: any): SearchResultItem {
+    // Convert Sequelize model to plain object if needed
+    const orderData = order.toJSON ? order.toJSON() : order;
+
     return {
-      id: order.id,
+      id: orderData.id,
       type: 'order',
-      title: order.orderNumber,
-      description: `Order by ${order.user?.firstName} ${order.user?.lastName}`,
-      subtitle: `€${order.totalAmount} • ${order.status} • ${order._count?.items || 0} items`,
-      url: `/orders/${order.id}`,
+      title: orderData.orderNumber,
+      description: `Order by ${orderData.user?.firstName} ${orderData.user?.lastName}`,
+      subtitle: `€${orderData.totalAmount} • ${orderData.status} • ${orderData._count?.items || 0} items`,
+      url: `/orders/${orderData.id}`,
       metadata: {
-        status: order.status,
-        totalAmount: order.totalAmount,
-        itemsCount: order._count?.items || 0,
-        customer: `${order.user?.firstName} ${order.user?.lastName}`,
-        email: order.user?.email,
-        createdAt: order.createdAt
+        status: orderData.status,
+        totalAmount: orderData.totalAmount,
+        itemsCount: orderData._count?.items || 0,
+        customer: `${orderData.user?.firstName} ${orderData.user?.lastName}`,
+        email: orderData.user?.email,
+        createdAt: orderData.createdAt
       },
-      relevanceScore: SearchService.calculateRelevanceScore('order', order)
+      relevanceScore: SearchService.calculateRelevanceScore('order', orderData)
     };
   }
 
@@ -736,22 +853,25 @@ export class SearchService {
    * Convert user to search result
    */
   private static userToSearchResult(user: any): SearchResultItem {
+    // Convert Sequelize model to plain object if needed
+    const userData = user.toJSON ? user.toJSON() : user;
+
     return {
-      id: user.id,
+      id: userData.id,
       type: 'user',
-      title: `${user.firstName} ${user.lastName}`,
-      description: user.email,
-      subtitle: `${user.role} • ${user._count?.orders || 0} orders • ${user.isActive ? 'Active' : 'Inactive'}`,
-      url: `/users/${user.id}`,
+      title: `${userData.firstName} ${userData.lastName}`,
+      description: userData.email,
+      subtitle: `${userData.role} • ${userData._count?.orders || 0} orders • ${userData.isActive ? 'Active' : 'Inactive'}`,
+      url: `/users/${userData.id}`,
       metadata: {
-        email: user.email,
-        role: user.role,
-        isActive: user.isActive,
-        ordersCount: user._count?.orders || 0,
-        lastLogin: user.lastLogin,
-        emailVerified: user.emailVerified
+        email: userData.email,
+        role: userData.role,
+        isActive: userData.isActive,
+        ordersCount: userData._count?.orders || 0,
+        lastLogin: userData.lastLogin,
+        emailVerified: userData.emailVerified
       },
-      relevanceScore: SearchService.calculateRelevanceScore('user', user)
+      relevanceScore: SearchService.calculateRelevanceScore('user', userData)
     };
   }
 

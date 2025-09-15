@@ -3,7 +3,7 @@
  * All types related to users, authentication, and authorization
  */
 
-import { UserRole } from '@prisma/client';
+import { UserRole } from '../models';
 import { AuditFields, PaginationQuery, Statistics } from './common';
 
 /**

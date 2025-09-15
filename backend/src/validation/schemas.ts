@@ -4,7 +4,7 @@
  */
 
 import Joi from 'joi';
-import { UserRole, ProductStatus, OrderStatus, PaymentStatus } from '@prisma/client';
+import { UserRole, ProductStatus, OrderStatus, PaymentStatus } from '../models';
 
 // ==========================================
 // USER VALIDATION SCHEMAS

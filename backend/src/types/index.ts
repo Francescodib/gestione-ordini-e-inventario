@@ -18,19 +18,34 @@ export * from './monitoring';
 // Note: user.ts removed to avoid naming conflicts
 // All types are now properly organized by domain
 
-// Re-export Prisma types for convenience (with specific exports to avoid conflicts)
+// Re-export Sequelize model types for convenience (with specific exports to avoid conflicts)
 export { 
-  Prisma,
-  User as PrismaUser,
-  Category as PrismaCategory,
-  Product as PrismaProduct,
-  Order as PrismaOrder,
-  OrderItem as PrismaOrderItem,
-  ProductImage as PrismaProductImage,
-  UserAvatar as PrismaUserAvatar,
-  UploadedFile as PrismaUploadedFile,
-  UserRole as PrismaUserRole,
+  User as SequelizeUser,
+  UserAttributes,
+  UserCreationAttributes,
+  UserRole as SequelizeUserRole,
+  Category as SequelizeCategory,
+  CategoryAttributes,
+  CategoryCreationAttributes,
+  Product as SequelizeProduct,
+  ProductAttributes,
+  ProductCreationAttributes,
   ProductStatus,
+  Order as SequelizeOrder,
+  OrderAttributes, 
+  OrderCreationAttributes,
   OrderStatus,
-  PaymentStatus
-} from '@prisma/client';
+  PaymentStatus,
+  OrderItem as SequelizeOrderItem,
+  OrderItemAttributes,
+  OrderItemCreationAttributes,
+  ProductImage as SequelizeProductImage,
+  ProductImageAttributes,
+  ProductImageCreationAttributes,
+  UserAvatar as SequelizeUserAvatar,
+  UserAvatarAttributes,
+  UserAvatarCreationAttributes,
+  UploadedFile as SequelizeUploadedFile,
+  UploadedFileAttributes,
+  UploadedFileCreationAttributes
+} from '../models';

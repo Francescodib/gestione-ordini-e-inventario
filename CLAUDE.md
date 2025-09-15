@@ -8,9 +8,9 @@ This is a full-stack inventory and order management system called "QuickStock So
 
 ## Architecture
 
-**Backend (Node.js/Express/TypeScript/Prisma/SQLite)**
+**Backend (Node.js/Express/TypeScript/Sequelize/SQLite)**
 - RESTful API with JWT authentication
-- Prisma ORM with SQLite database
+- Sequelize ORM with SQLite database
 - Comprehensive logging system with Winston
 - Monitoring with Prometheus metrics
 - Automated backup system for database and files
@@ -34,12 +34,9 @@ npm run build                  # Build TypeScript to dist/
 npm start                      # Start production server from dist/
 
 # Database
-npm run db:migrate             # Run Prisma migrations
-npm run db:generate            # Generate Prisma client
-npm run db:studio              # Open Prisma Studio
 npm run db:seed                # Seed database with test data
 npm run db:verify              # Verify database data integrity
-npm run db:reset               # Reset database (careful!)
+npm run db:demo-user           # Create demo user manually
 
 # Testing
 npm test                       # Run all tests
@@ -65,9 +62,20 @@ npm run lint                   # Run ESLint
 npm run preview                # Preview production build
 ```
 
+## First Time Access
+
+### Demo User Credentials
+When you first start the application, a demo user will be automatically created if no users exist in the database:
+
+- **Email**: `demo@demo.com`
+- **Password**: `Demo123!`
+- **Role**: ADMIN (full access)
+
+Use these credentials to log in and explore the system functionality.
+
 ## Database Architecture
 
-The system uses Prisma with SQLite and includes these main entities:
+The system uses Sequelize with SQLite and includes these main entities:
 - **User**: Authentication, roles (USER/ADMIN/MANAGER), profile management
 - **Category**: Hierarchical product categories with parent/child relationships
 - **Product**: Complete product management with variants, images, inventory tracking
@@ -124,10 +132,14 @@ Key relationships:
 - Optional: monitoring, backup, and logging configurations
 
 ### Database Setup
-Always run after schema changes:
+The database uses Sequelize and will automatically sync models on startup:
 ```bash
-npx prisma migrate dev --name description-of-change
-npx prisma generate
+npm run dev  # Automatically syncs models and creates demo user
+```
+
+To manually create a demo user:
+```bash
+npm run db:demo-user
 ```
 
 ### Development Workflow

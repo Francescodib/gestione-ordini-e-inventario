@@ -123,11 +123,22 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Check if it's a 401 error but NOT on login/register endpoints
     if (error.response?.status === 401) {
-      // Token scaduto o non valido
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      const url = error.config?.url || '';
+      const isAuthEndpoint = url.includes('/login') || url.includes('/register');
+      
+      if (!isAuthEndpoint) {
+        // Token scaduto o non valido - solo per endpoint protetti
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Use history API instead of window.location to avoid hard refresh
+        if (window.location.pathname !== '/login') {
+          window.history.pushState({}, '', '/login');
+          window.location.reload();
+        }
+      }
     }
     return Promise.reject(error);
   }

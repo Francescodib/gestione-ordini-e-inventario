@@ -5,7 +5,8 @@
 
 import request from 'supertest';
 import { Express } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Sequelize } from 'sequelize';
+import { User, Category, Product, Order, OrderItem, ProductImage, UserAvatar, UploadedFile, UserRole, ProductStatus, OrderStatus, PaymentStatus } from '../models';
 import { generateTestToken, seedTestDatabase } from './setup';
 
 /**
@@ -13,13 +14,13 @@ import { generateTestToken, seedTestDatabase } from './setup';
  */
 export class ApiTestHelper {
   private app: Express;
-  private prisma: PrismaClient;
+  private sequelize: Sequelize;
   private tokens: Map<string, string> = new Map();
   private testData: any = {};
 
-  constructor(app: Express, prisma: PrismaClient) {
+  constructor(app: Express, sequelize: Sequelize) {
     this.app = app;
-    this.prisma = prisma;
+    this.sequelize = sequelize;
   }
 
   /**
@@ -27,12 +28,12 @@ export class ApiTestHelper {
    */
   async initialize(): Promise<void> {
     // Seed database
-    this.testData = await seedTestDatabase(this.prisma);
+    this.testData = await seedTestDatabase();
     
     // Generate tokens for different user roles
-    this.tokens.set('admin', generateTestToken(this.testData.users[0].id, 'ADMIN'));
-    this.tokens.set('manager', generateTestToken(this.testData.users[1].id, 'MANAGER'));
-    this.tokens.set('user', generateTestToken(this.testData.users[2].id, 'USER'));
+    this.tokens.set('admin', generateTestToken(this.testData.users[0].id, UserRole.ADMIN));
+    this.tokens.set('manager', generateTestToken(this.testData.users[1].id, UserRole.MANAGER));
+    this.tokens.set('user', generateTestToken(this.testData.users[2].id, UserRole.USER));
   }
 
   /**
@@ -214,7 +215,7 @@ export class MockDataGenerator {
       password: 'Password123!',
       firstName: 'Test',
       lastName: 'User',
-      role: 'USER',
+      role: UserRole.USER,
       ...overrides
     };
   }
@@ -236,7 +237,7 @@ export class MockDataGenerator {
       minStock: 10,
       maxStock: 500,
       weight: 1000,
-      status: 'ACTIVE',
+      status: ProductStatus.ACTIVE,
       ...overrides
     };
   }
@@ -309,10 +310,10 @@ export class MockDataGenerator {
  * Database Test Utilities
  */
 export class DatabaseTestUtils {
-  private prisma: PrismaClient;
+  private sequelize: Sequelize;
 
-  constructor(prisma: PrismaClient) {
-    this.prisma = prisma;
+  constructor(sequelize: Sequelize) {
+    this.sequelize = sequelize;
   }
 
   /**
@@ -321,15 +322,15 @@ export class DatabaseTestUtils {
   async countRecords(table: string): Promise<number> {
     switch (table) {
       case 'users':
-        return await this.prisma.user.count();
+        return await User.count();
       case 'products':
-        return await this.prisma.product.count();
+        return await Product.count();
       case 'categories':
-        return await this.prisma.category.count();
+        return await Category.count();
       case 'orders':
-        return await this.prisma.order.count();
+        return await Order.count();
       case 'orderItems':
-        return await this.prisma.orderItem.count();
+        return await OrderItem.count();
       default:
         throw new Error(`Unknown table: ${table}`);
     }
@@ -343,16 +344,16 @@ export class DatabaseTestUtils {
       let record;
       switch (table) {
         case 'users':
-          record = await this.prisma.user.findUnique({ where: { id } });
+          record = await User.findByPk(id);
           break;
         case 'products':
-          record = await this.prisma.product.findUnique({ where: { id } });
+          record = await Product.findByPk(id);
           break;
         case 'categories':
-          record = await this.prisma.category.findUnique({ where: { id } });
+          record = await Category.findByPk(id);
           break;
         case 'orders':
-          record = await this.prisma.order.findUnique({ where: { id } });
+          record = await Order.findByPk(id);
           break;
         default:
           throw new Error(`Unknown table: ${table}`);
@@ -369,13 +370,13 @@ export class DatabaseTestUtils {
   async getRecord(table: string, id: string): Promise<any> {
     switch (table) {
       case 'users':
-        return await this.prisma.user.findUnique({ where: { id } });
+        return await User.findByPk(id);
       case 'products':
-        return await this.prisma.product.findUnique({ where: { id } });
+        return await Product.findByPk(id);
       case 'categories':
-        return await this.prisma.category.findUnique({ where: { id } });
+        return await Category.findByPk(id);
       case 'orders':
-        return await this.prisma.order.findUnique({ where: { id } });
+        return await Order.findByPk(id);
       default:
         throw new Error(`Unknown table: ${table}`);
     }

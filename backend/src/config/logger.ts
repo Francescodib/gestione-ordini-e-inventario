@@ -151,7 +151,7 @@ export const dbLogger = winston.createLogger({
         message: info.message,
         service: 'quickstock-db',
         environment,
-        ...info
+        ...(info.meta || {})
       });
     })
   ),
@@ -185,7 +185,7 @@ export const securityLogger = winston.createLogger({
         message: info.message,
         service: 'quickstock-security',
         environment,
-        ...info
+        ...(info.meta || {})
       });
     })
   ),

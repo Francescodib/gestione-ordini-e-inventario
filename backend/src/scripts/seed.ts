@@ -3,10 +3,9 @@
  * Popola il database con dati di test per sviluppo e testing
  */
 
-import { PrismaClient, UserRole, ProductStatus, OrderStatus, PaymentStatus } from '@prisma/client';
+import { sequelize, User, Category, Product, Order, OrderItem, UserRole, ProductStatus, OrderStatus, PaymentStatus } from '../models';
+import { Op } from 'sequelize';
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
 
 /**
  * Genera dati utenti di test
@@ -63,10 +62,9 @@ async function seedUsers() {
   ];
 
   for (const userData of users) {
-    await prisma.user.upsert({
+    await User.findOrCreate({
       where: { email: userData.email },
-      update: {},
-      create: userData,
+      defaults: userData,
     });
   }
   
@@ -105,10 +103,9 @@ async function seedCategories() {
 
   const createdMainCategories = [];
   for (const categoryData of mainCategories) {
-    const category = await prisma.category.upsert({
+    const [category] = await Category.findOrCreate({
       where: { slug: categoryData.slug },
-      update: {},
-      create: categoryData,
+      defaults: categoryData,
     });
     createdMainCategories.push(category);
   }
@@ -169,10 +166,9 @@ async function seedCategories() {
   ];
 
   for (const categoryData of subCategories) {
-    await prisma.category.upsert({
+    await Category.findOrCreate({
       where: { slug: categoryData.slug },
-      update: {},
-      create: categoryData,
+      defaults: categoryData,
     });
   }
   
@@ -186,7 +182,7 @@ async function seedProducts() {
   console.log('📦 Seeding products...');
   
   // Ottieni le categorie per assegnare i prodotti
-  const categories = await prisma.category.findMany();
+  const categories = await Category.findAll();
   const smartphoneCategory = categories.find(c => c.slug === 'smartphone');
   const computerCategory = categories.find(c => c.slug === 'computer');
   const audioCategory = categories.find(c => c.slug === 'audio');
@@ -341,10 +337,9 @@ async function seedProducts() {
   ];
 
   for (const productData of products) {
-    await prisma.product.upsert({
+    await Product.findOrCreate({
       where: { sku: productData.sku },
-      update: {},
-      create: productData,
+      defaults: productData,
     });
   }
   
@@ -358,8 +353,8 @@ async function seedOrders() {
   console.log('🛒 Seeding orders...');
   
   // Ottieni utenti e prodotti
-  const users = await prisma.user.findMany({ where: { role: UserRole.USER } });
-  const products = await prisma.product.findMany({ where: { stock: { gt: 0 } } });
+  const users = await User.findAll({ where: { role: UserRole.USER } });
+  const products = await Product.findAll({ where: { stock: { [Op.gt]: 0 } } });
   
   if (users.length === 0 || products.length === 0) {
     console.log('⚠️ No users or products found for creating orders');
@@ -489,35 +484,36 @@ async function seedOrders() {
     const sequence = (i + 1).toString().padStart(4, '0');
     const orderNumber = `ORD${year}${month}${day}${sequence}`;
     
-    const order = await prisma.order.create({
-      data: {
-        orderNumber: orderNumber,
-        userId: orderData.userId,
-        status: orderData.status,
-        paymentStatus: orderData.paymentStatus,
-        subtotal: subtotal,
-        shippingCost: orderData.shippingCost,
-        taxAmount: orderData.taxAmount,
-        discountAmount: orderData.discountAmount,
-        totalAmount: totalAmount,
-        currency: orderData.currency,
-        shippingAddress: orderData.shippingAddress,
-        items: {
-          create: orderData.items
-        }
-      }
+    const order = await Order.create({
+      orderNumber: orderNumber,
+      userId: orderData.userId,
+      status: orderData.status,
+      paymentStatus: orderData.paymentStatus,
+      subtotal: subtotal,
+      shippingCost: orderData.shippingCost,
+      taxAmount: orderData.taxAmount,
+      discountAmount: orderData.discountAmount,
+      totalAmount: totalAmount,
+      currency: orderData.currency,
+      shippingAddress: orderData.shippingAddress
     });
+    
+    // Create order items
+    for (const itemData of orderData.items) {
+      await OrderItem.create({
+        ...itemData,
+        orderId: order.id
+      });
+    }
     
     // Aggiorna stock dei prodotti
     for (const item of orderData.items) {
-      await prisma.product.update({
-        where: { id: item.productId },
-        data: {
-          stock: {
-            decrement: item.quantity
-          }
-        }
-      });
+      const product = await Product.findByPk(item.productId);
+      if (product) {
+        await product.update({
+          stock: product.stock - item.quantity
+        });
+      }
     }
   }
   
@@ -531,6 +527,14 @@ async function main() {
   console.log('🌱 Starting database seed...');
   
   try {
+    // Connessione al database
+    await sequelize.authenticate();
+    console.log('✅ Database connected');
+    
+    // Sincronizzazione dei modelli (crea tabelle se non esistono)
+    await sequelize.sync({ force: true }); // Use force: true to recreate tables
+    console.log('✅ Database synced and tables created');
+    
     await seedUsers();
     await seedCategories();
     await seedProducts();
@@ -540,10 +544,10 @@ async function main() {
     
     // Statistiche finali
     const stats = await Promise.all([
-      prisma.user.count(),
-      prisma.category.count(),
-      prisma.product.count(),
-      prisma.order.count(),
+      User.count(),
+      Category.count(),
+      Product.count(),
+      Order.count(),
     ]);
     
     console.log('\n📊 Database Statistics:');
@@ -565,5 +569,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    await sequelize.close();
   });
