@@ -29,6 +29,25 @@ export interface UpdateUserRequest {
   isActive?: boolean;
 }
 
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface UserResponse {
+  id: number;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  isActive: boolean;
+  emailVerified: boolean;
+  lastLogin?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /**
  * User service class with Sequelize
  */

@@ -51,6 +51,26 @@ export class FileService {
     throw new Error('File service temporarily disabled - needs Sequelize implementation');
   }
 
+  static async uploadProductImages(...args: any[]): Promise<any> {
+    logger.warn('FileService::uploadProductImages called but service is disabled during Prisma migration');
+    throw new Error('File service temporarily disabled - needs Sequelize implementation');
+  }
+
+  static async uploadAvatar(...args: any[]): Promise<any> {
+    logger.warn('FileService::uploadAvatar called but service is disabled during Prisma migration');
+    throw new Error('File service temporarily disabled - needs Sequelize implementation');
+  }
+
+  static async uploadDocument(...args: any[]): Promise<any> {
+    logger.warn('FileService::uploadDocument called but service is disabled during Prisma migration');
+    throw new Error('File service temporarily disabled - needs Sequelize implementation');
+  }
+
+  static async getFilesByEntity(...args: any[]): Promise<any> {
+    logger.warn('FileService::getFilesByEntity called but service is disabled during Prisma migration');
+    throw new Error('File service temporarily disabled - needs Sequelize implementation');
+  }
+
   static async uploadGenericFile(...args: any[]): Promise<any> {
     logger.warn('FileService::uploadGenericFile called but service is disabled during Prisma migration');
     throw new Error('File service temporarily disabled - needs Sequelize implementation');

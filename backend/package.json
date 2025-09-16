@@ -29,6 +29,7 @@
   "dependencies": {
     "@types/archiver": "^6.0.3",
     "@types/fs-extra": "^11.0.4",
+    "@types/node-cron": "^3.0.11",
     "@types/sequelize": "^4.28.20",
     "@types/systeminformation": "^3.23.1",
     "@types/uuid": "^10.0.0",

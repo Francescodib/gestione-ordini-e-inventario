@@ -207,7 +207,7 @@ router.get('/',
         filters: {
           status: status as OrderStatus,
           paymentStatus: paymentStatus as PaymentStatus,
-          userId: finalUserId,
+          userId: finalUserId ? parseIntId(finalUserId) : undefined,
           dateFrom: dateFrom ? new Date(dateFrom as string) : undefined,
           dateTo: dateTo ? new Date(dateTo as string) : undefined,
           minTotal: minTotal ? Number(minTotal) : undefined,
@@ -428,7 +428,7 @@ router.get('/:id',
     } catch (error: any) {
       logger.error('Error fetching order', {
         error: error.message,
-        orderId: parseIntId(req.params.id),
+        orderId: req.params.id,
         userId: req.user?.userId
       });
       
@@ -478,7 +478,7 @@ router.put('/:id/status',
     } catch (error: any) {
       logger.error('Error updating order status', {
         error: error.message,
-        orderId: parseIntId(req.params.id),
+        orderId: req.params.id,
         userId: req.user?.userId
       });
 
@@ -532,7 +532,7 @@ router.put('/:id',
     } catch (error: any) {
       logger.error('Error updating order', {
         error: error.message,
-        orderId: parseIntId(req.params.id),
+        orderId: req.params.id,
         userId: req.user?.userId
       });
 
@@ -592,7 +592,7 @@ router.post('/:id/cancel',
     } catch (error: any) {
       logger.error('Error cancelling order', {
         error: error.message,
-        orderId: parseIntId(req.params.id),
+        orderId: req.params.id,
         userId: req.user?.userId,
         reason: req.body.reason
       });
@@ -640,7 +640,7 @@ router.post('/bulk/update-status',
 
       // Update orders in bulk
       const updatePromises = orderIds.map((id: string) =>
-        OrderService.updateOrder(id, { status, paymentStatus }, userId)
+        OrderService.updateOrder(parseIntId(id), { status, paymentStatus }, userId)
       );
 
       const results = await Promise.allSettled(updatePromises);

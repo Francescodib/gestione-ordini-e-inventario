@@ -114,7 +114,7 @@ router.get('/tree',
     try {
       const { rootId } = req.query;
 
-      const tree = await CategoryService.getCategoryTree(rootId as string);
+      const tree = await CategoryService.getCategoryTree(rootId ? parseIntId(rootId as string) : undefined);
 
       res.json({
         success: true,
@@ -230,7 +230,7 @@ router.get('/:id/path',
     } catch (error: any) {
       logger.error('Error fetching category path', {
         error: error.message,
-        categoryId: parseIntId(req.params.id)
+        categoryId: req.params.id
       });
       
       res.status(500).json({
@@ -271,7 +271,7 @@ router.get('/:id',
     } catch (error: any) {
       logger.error('Error fetching category', {
         error: error.message,
-        categoryId: parseIntId(req.params.id)
+        categoryId: req.params.id
       });
       
       res.status(500).json({
@@ -368,7 +368,7 @@ router.put('/:id',
     } catch (error: any) {
       logger.error('Error updating category', {
         error: error.message,
-        categoryId: parseIntId(req.params.id),
+        categoryId: req.params.id,
         userId: req.user?.userId
       });
 
@@ -413,7 +413,7 @@ router.delete('/:id',
     } catch (error: any) {
       logger.error('Error deleting category', {
         error: error.message,
-        categoryId: parseIntId(req.params.id),
+        categoryId: req.params.id,
         userId: req.user?.userId
       });
 
@@ -470,7 +470,7 @@ router.put('/:id/move',
     } catch (error: any) {
       logger.error('Error moving category', {
         error: error.message,
-        categoryId: parseIntId(req.params.id),
+        categoryId: req.params.id,
         newParentId: req.body.newParentId,
         userId: req.user?.userId
       });
@@ -521,7 +521,7 @@ router.post('/bulk/reorder',
 
       // Update sort order for each category
       const updatePromises = categories.map((cat: { id: string; sortOrder: number }) =>
-        CategoryService.updateCategory(cat.id, { sortOrder: cat.sortOrder }, userId)
+        CategoryService.updateCategory(parseIntId(cat.id), { sortOrder: cat.sortOrder }, userId)
       );
 
       const results = await Promise.allSettled(updatePromises);
@@ -586,7 +586,7 @@ router.post('/bulk/update-status',
 
       // Update categories in bulk
       const updatePromises = categoryIds.map((id: string) =>
-        CategoryService.updateCategory(id, { isActive }, userId)
+        CategoryService.updateCategory(parseIntId(id), { isActive }, userId)
       );
 
       const results = await Promise.allSettled(updatePromises);

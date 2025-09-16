@@ -109,7 +109,6 @@ export class MonitoringScheduler {
     const task = cron.schedule(schedule, async () => {
       await this.runMetricsCollection();
     }, {
-      scheduled: false,
       timezone: 'Europe/Rome'
     });
     
@@ -141,7 +140,6 @@ export class MonitoringScheduler {
     const task = cron.schedule(schedule, async () => {
       await this.runHealthChecks();
     }, {
-      scheduled: false,
       timezone: 'Europe/Rome'
     });
     
@@ -169,7 +167,6 @@ export class MonitoringScheduler {
     const task = cron.schedule(schedule, async () => {
       await this.runAlertEvaluation();
     }, {
-      scheduled: false,
       timezone: 'Europe/Rome'
     });
     
@@ -195,7 +192,6 @@ export class MonitoringScheduler {
     const alertCleanupTask = cron.schedule('0 1 * * *', async () => {
       await this.runAlertCleanup();
     }, {
-      scheduled: false,
       timezone: 'Europe/Rome'
     });
     

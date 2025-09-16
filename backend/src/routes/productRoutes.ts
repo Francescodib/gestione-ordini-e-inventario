@@ -284,7 +284,7 @@ router.get('/:id',
   validateId(),
   async (req: Request, res: Response) => {
     try {
-      const productId = parseIntId(parseIntId(req.params.id));
+      const productId = parseIntId(req.params.id);
       const product = await ProductService.getProductById(productId);
 
       if (!product) {
@@ -301,7 +301,7 @@ router.get('/:id',
     } catch (error: any) {
       logger.error('Error fetching product', {
         error: error.message,
-        productId: parseIntId(req.params.id)
+        productId: req.params.id
       });
       
       res.status(500).json({
@@ -432,7 +432,7 @@ router.put('/:id',
     } catch (error: any) {
       logger.error('Error updating product', {
         error: error.message,
-        productId: parseIntId(req.params.id),
+        productId: req.params.id,
         userId: req.user?.userId
       });
 
@@ -475,7 +475,7 @@ router.delete('/:id',
     } catch (error: any) {
       logger.error('Error deleting product', {
         error: error.message,
-        productId: parseIntId(req.params.id),
+        productId: req.params.id,
         userId: req.user?.userId
       });
 
@@ -534,7 +534,7 @@ router.post('/:id/stock',
     } catch (error: any) {
       logger.error('Error updating stock', {
         error: error.message,
-        productId: parseIntId(req.params.id),
+        productId: req.params.id,
         userId: req.user?.userId,
         operation: req.body.operation,
         quantity: req.body.quantity
@@ -580,7 +580,7 @@ router.post('/bulk/update-status',
 
       // Update products in bulk
       const updatePromises = productIds.map((id: string) =>
-        ProductService.updateProduct(id, { status }, userId)
+        ProductService.updateProduct(parseIntId(id), { status }, userId)
       );
 
       const results = await Promise.allSettled(updatePromises);

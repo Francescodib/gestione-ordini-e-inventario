@@ -4,7 +4,7 @@
  */
 
 import express, { Request, Response } from 'express';
-import { SearchService, GlobalSearchOptions, EntitySearchOptions } from '../services/searchService';
+import { SearchService, GlobalSearchOptions } from '../services/searchService';
 import { verifyToken } from '../middleware/auth';
 import { logger, logUtils } from '../config/logger';
 import {
@@ -276,7 +276,7 @@ router.get('/products',
       if (status) filters.status = (status as string).split(',');
       if (inStock !== undefined) filters.inStock = inStock === 'true';
 
-      const searchOptions: EntitySearchOptions = {
+      const searchOptions: GlobalSearchOptions = {
         query: query as string,
         limit: Number(limit),
         page: Number(page),
@@ -340,7 +340,7 @@ router.get('/categories',
         includeRelated = false
       } = req.query;
 
-      const searchOptions: EntitySearchOptions = {
+      const searchOptions: GlobalSearchOptions = {
         query: query as string,
         limit: Number(limit),
         page: Number(page),
@@ -426,7 +426,7 @@ router.get('/orders',
         };
       }
 
-      const searchOptions: EntitySearchOptions = {
+      const searchOptions: GlobalSearchOptions = {
         query: query as string,
         limit: Number(limit),
         page: Number(page),
@@ -504,7 +504,7 @@ router.get('/users',
       const filters: any = {};
       if (role) filters.role = (role as string).split(',');
 
-      const searchOptions: EntitySearchOptions = {
+      const searchOptions: GlobalSearchOptions = {
         query: query as string,
         limit: Number(limit),
         page: Number(page),

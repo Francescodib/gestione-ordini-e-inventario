@@ -7,11 +7,10 @@ import { Product, ProductStatus, Category, OrderItem } from '../models';
 import { sequelize } from '../config/database';
 import { logger, logUtils } from '../config/logger';
 import { Op, WhereOptions } from 'sequelize';
-// Note: Product types are defined inline in this service for now
-// Future migration: move to ../types/product.ts
 
 /**
- * Interfaces for product operations
+ * Service-specific interfaces adapted for Sequelize integer IDs
+ * Note: The frontend types use string IDs, service layer handles conversion
  */
 export interface CreateProductRequest {
   name: string;

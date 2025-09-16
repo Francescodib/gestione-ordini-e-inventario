@@ -364,6 +364,18 @@ export const logUtils = {
       userId,
       type: 'business_error'
     });
+  },
+
+  /**
+   * Log system action
+   */
+  logSystemAction: (action: string, message: string, context?: any) => {
+    logger.info('System Action', {
+      action,
+      message,
+      context,
+      type: 'system_action'
+    });
   }
 };
 

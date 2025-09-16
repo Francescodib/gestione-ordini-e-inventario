@@ -4,10 +4,9 @@
  */
 
 import express, { Request, Response } from 'express';
-import { UserService } from '../services/userService';
+import { UserService, CreateUserRequest, UpdateUserRequest, LoginRequest, UserResponse } from '../services/userService';
 import { AuthService } from '../services/authService';
 import { verifyToken } from '../middleware/auth';
-import { CreateUserRequest, UpdateUserRequest, LoginRequest, UserResponse } from '../types/auth';
 import { logger } from '../config/logger';
 import { 
   validateBody, 
@@ -113,7 +112,6 @@ router.post('/register',
     const authResponse = AuthService.createAuthResponse(userForToken as any);
 
     res.status(201).json({
-      success: true,
       ...authResponse,
       message: 'User registered successfully'
     });
@@ -178,7 +176,6 @@ router.post('/login',
     logger.info('User login successful', { userId: user.id, ip: req.ip });
     
     res.json({
-      success: true,
       ...authResponse,
       message: 'Login successful'
     });

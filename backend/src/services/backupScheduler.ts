@@ -52,23 +52,23 @@ export class BackupScheduler {
       if (this.config.database.enabled) {
         this.scheduleDatabaseBackup();
       }
-      
+
       // Schedule file backups
       if (this.config.files.enabled) {
         this.scheduleFilesBackup();
       }
-      
+
       // Schedule cleanup jobs
       this.scheduleCleanupJobs();
-      
+
       logger.info('Backup scheduler initialized successfully', {
         activeJobs: this.jobs.size
       });
-      
-      logUtils.logSystemAction('BACKUP_SCHEDULER_INITIALIZED', 
+
+      logUtils.logSystemAction('BACKUP_SCHEDULER_INITIALIZED',
         `Initialized ${this.jobs.size} backup jobs`
       );
-      
+
     } catch (error: any) {
       logger.error('Failed to initialize backup scheduler', { error: error.message });
       throw error;

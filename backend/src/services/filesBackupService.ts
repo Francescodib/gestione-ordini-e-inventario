@@ -9,7 +9,7 @@ import archiver from 'archiver';
 import crypto from 'crypto';
 import yauzl from 'yauzl';
 import { glob } from 'glob';
-import { logger } from '../config/logger';
+import { logger, logUtils } from '../config/logger';
 import { 
   BackupConfig, 
   getBackupFileName, 

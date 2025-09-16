@@ -7,7 +7,10 @@
       "Bash(grep:*)",
       "Bash(npm uninstall:*)",
       "Bash(curl:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npm test)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []

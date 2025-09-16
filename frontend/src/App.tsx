@@ -6,7 +6,12 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ProductsPage from './pages/ProductsPage';
+import ProductCreatePage from './pages/ProductCreatePage';
+import ProductDetailPage from './pages/ProductDetailPage';
+import ProductEditPage from './pages/ProductEditPage';
 import OrdersPage from './pages/OrdersPage';
+import OrderCreatePage from './pages/OrderCreatePage';
+import OrderDetailPage from './pages/OrderDetailPage';
 import SearchPage from './pages/SearchPage';
 import CategoriesPage from './pages/CategoriesPage';
 import UsersPage from './pages/UsersPage';
@@ -32,21 +37,61 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/products" 
+            <Route
+              path="/products"
               element={
                 <ProtectedRoute>
                   <ProductsPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/orders" 
+            <Route
+              path="/products/new"
+              element={
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
+                  <ProductCreatePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/products/:id"
+              element={
+                <ProtectedRoute>
+                  <ProductDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/products/:id/edit"
+              element={
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
+                  <ProductEditPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders"
               element={
                 <ProtectedRoute>
                   <OrdersPage />
                 </ProtectedRoute>
-              } 
+              }
+            />
+            <Route
+              path="/orders/new"
+              element={
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
+                  <OrderCreatePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/:id"
+              element={
+                <ProtectedRoute>
+                  <OrderDetailPage />
+                </ProtectedRoute>
+              }
             />
             <Route 
               path="/categories" 

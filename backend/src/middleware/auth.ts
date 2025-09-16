@@ -9,17 +9,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-/**
- * Estensione dell'interfaccia Request di Express per includere i dati utente
- * Permette di accedere alle informazioni dell'utente autenticato nei controller
- */
-declare global {
-  namespace Express {
-    interface Request {
-      user?: jwt.JwtPayload;
-    }
-  }
-}
 
 /**
  * Middleware principale per la verifica del token JWT
