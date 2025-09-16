@@ -18,7 +18,7 @@ export interface CreateProductRequest {
   description: string;
   sku: string;
   barcode?: string;
-  categoryId: string;
+  categoryId: number;
   price: number;
   costPrice: number;
   stock?: number;
@@ -45,7 +45,7 @@ export interface UpdateProductRequest {
   description?: string;
   sku?: string;
   barcode?: string;
-  categoryId?: string;
+  categoryId?: number;
   price?: number;
   costPrice?: number;
   stock?: number;
@@ -69,7 +69,7 @@ export interface UpdateProductRequest {
 }
 
 export interface ProductFilters {
-  categoryId?: string;
+  categoryId?: number;
   status?: ProductStatus;
   isActive?: boolean;
   inStock?: boolean;
@@ -99,7 +99,7 @@ export interface ProductStats {
   averagePrice: number;
   categoriesCount: number;
   topCategories: Array<{
-    categoryId: string;
+    categoryId: number;
     categoryName: string;
     productCount: number;
   }>;
@@ -293,7 +293,7 @@ export class ProductService {
   /**
    * Get product by ID
    */
-  static async getProductById(id: string): Promise<Product | null> {
+  static async getProductById(id: number): Promise<Product | null> {
     try {
       const startTime = Date.now();
       
@@ -331,7 +331,7 @@ export class ProductService {
   /**
    * Update product
    */
-  static async updateProduct(id: string, updateData: UpdateProductRequest, userId?: string): Promise<Product> {
+  static async updateProduct(id: number, updateData: UpdateProductRequest, userId?: string): Promise<Product> {
     try {
       const startTime = Date.now();
 
@@ -424,7 +424,7 @@ export class ProductService {
   /**
    * Delete product (soft delete)
    */
-  static async deleteProduct(id: string, userId?: string): Promise<boolean> {
+  static async deleteProduct(id: number, userId?: string): Promise<boolean> {
     try {
       const startTime = Date.now();
 
@@ -493,7 +493,7 @@ export class ProductService {
   /**
    * Update product stock
    */
-  static async updateStock(id: string, quantity: number, operation: 'add' | 'subtract' = 'subtract', userId?: string): Promise<Product> {
+  static async updateStock(id: number, quantity: number, operation: 'add' | 'subtract' = 'subtract', userId?: string): Promise<Product> {
     try {
       const product = await Product.findByPk(id);
 

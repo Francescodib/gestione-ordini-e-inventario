@@ -7,12 +7,12 @@ import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../config/sequelize';
 
 export interface CategoryAttributes {
-  id: string;
+  id: number;
   name: string;
   description: string;
   slug: string;
   isActive: boolean;
-  parentId?: string;
+  parentId?: number;
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -21,12 +21,12 @@ export interface CategoryAttributes {
 export interface CategoryCreationAttributes extends Optional<CategoryAttributes, 'id' | 'isActive' | 'parentId' | 'sortOrder' | 'createdAt' | 'updatedAt'> {}
 
 export class Category extends Model<CategoryAttributes, CategoryCreationAttributes> implements CategoryAttributes {
-  declare id: string;
+  declare id: number;
   declare name: string;
   declare description: string;
   declare slug: string;
   declare isActive: boolean;
-  declare parentId?: string;
+  declare parentId?: number;
   declare sortOrder: number;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
@@ -45,14 +45,9 @@ export class Category extends Model<CategoryAttributes, CategoryCreationAttribut
 Category.init(
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
-      defaultValue: () => {
-        // Generate cuid-like ID (simplified version)
-        const timestamp = Date.now().toString(36);
-        const randomPart = Math.random().toString(36).substr(2, 9);
-        return `c${timestamp}${randomPart}`;
-      }
+      autoIncrement: true
     },
     name: {
       type: DataTypes.STRING,
@@ -79,7 +74,7 @@ Category.init(
       defaultValue: true
     },
     parentId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: true,
       references: {
         model: 'categories',

@@ -7,8 +7,8 @@ import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../config/sequelize';
 
 export interface ProductImageAttributes {
-  id: string;
-  productId: string;
+  id: number;
+  productId: number;
   filename: string;
   originalName: string;
   thumbnailPath: string;
@@ -26,8 +26,8 @@ export interface ProductImageAttributes {
 export interface ProductImageCreationAttributes extends Optional<ProductImageAttributes, 'id' | 'isPrimary' | 'sortOrder' | 'createdAt' | 'updatedAt'> {}
 
 export class ProductImage extends Model<ProductImageAttributes, ProductImageCreationAttributes> implements ProductImageAttributes {
-  declare id: string;
-  declare productId: string;
+  declare id: number;
+  declare productId: number;
   declare filename: string;
   declare originalName: string;
   declare thumbnailPath: string;
@@ -45,17 +45,12 @@ export class ProductImage extends Model<ProductImageAttributes, ProductImageCrea
 ProductImage.init(
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
-      defaultValue: () => {
-        // Generate cuid-like ID (simplified version)
-        const timestamp = Date.now().toString(36);
-        const randomPart = Math.random().toString(36).substr(2, 9);
-        return `c${timestamp}${randomPart}`;
-      }
+      autoIncrement: true
     },
     productId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: 'products',

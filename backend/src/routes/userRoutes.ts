@@ -28,6 +28,15 @@ import {
 // Inizializzazione del router Express
 const router = express.Router();
 
+// Helper function per convertire string ID a number
+const parseIntId = (id: string): number => {
+  const parsed = parseInt(id, 10);
+  if (isNaN(parsed) || parsed <= 0) {
+    throw new Error('Invalid ID format');
+  }
+  return parsed;
+};
+
 // ==========================================
 // ROTTE PUBBLICHE (senza autenticazione)
 // ==========================================
@@ -456,7 +465,8 @@ router.get('/:id',
   validateId(),
   async (req: Request, res: Response) => {
   try {
-    const user = await UserService.getUserById(req.params.id);
+    const userId = parseIntId(req.params.id);
+    const user = await UserService.getUserById(userId);
     if (!user) {
       return res.status(404).json({ 
         success: false,
@@ -510,7 +520,7 @@ router.put('/:id',
       const conflicts = await UserService.checkUserExists(
         userData.email, 
         userData.username, 
-        req.params.id
+        parseIntId(req.params.id)
       );
       
       if (conflicts.emailExists) {
@@ -528,7 +538,8 @@ router.put('/:id',
       }
     }
 
-    const updatedUser = await UserService.updateUser(req.params.id, userData);
+    const userId = parseIntId(req.params.id);
+    const updatedUser = await UserService.updateUser(userId, userData);
     
     if (!updatedUser) {
       return res.status(404).json({ 
@@ -571,7 +582,8 @@ router.put('/:id',
  */
 router.delete('/:id', verifyToken, async (req: Request, res: Response) => {
   try {
-    const deleted = await UserService.deleteUser(req.params.id);
+    const userId = parseIntId(req.params.id);
+    const deleted = await UserService.deleteUser(userId);
     if (!deleted) {
       return res.status(404).json({ 
         success: false,

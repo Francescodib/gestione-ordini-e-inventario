@@ -14,7 +14,7 @@ dotenv.config();
  * Contiene le informazioni essenziali dell'utente codificate nel token
  */
 export interface TokenPayload {
-  userId: string;      // ID univoco dell'utente
+  userId: number;      // ID univoco dell'utente
   email: string;       // Email dell'utente
   role?: string;       // Ruolo dell'utente (opzionale)
   iat?: number;        // Timestamp di emissione (issued at)

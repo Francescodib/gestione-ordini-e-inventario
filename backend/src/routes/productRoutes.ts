@@ -26,6 +26,15 @@ import Joi from 'joi';
 // Initialize router
 const router = express.Router();
 
+// Helper function to parse string ID to number
+const parseIntId = (id: string): number => {
+  const parsed = parseInt(id, 10);
+  if (isNaN(parsed) || parsed <= 0) {
+    throw new Error('Invalid ID format');
+  }
+  return parsed;
+};
+
 // ==========================================
 // PUBLIC ROUTES (no authentication required)
 // ==========================================
@@ -60,7 +69,7 @@ router.get('/',
         sortBy: sortBy as any,
         sortOrder: sortOrder as any,
         filters: {
-          categoryId: categoryId as string,
+          categoryId: categoryId ? parseIntId(categoryId as string) : undefined,
           status: status as any,
           inStock: inStock === 'true',
           lowStock: lowStock === 'true',
@@ -275,7 +284,8 @@ router.get('/:id',
   validateId(),
   async (req: Request, res: Response) => {
     try {
-      const product = await ProductService.getProductById(req.params.id);
+      const productId = parseIntId(parseIntId(req.params.id));
+      const product = await ProductService.getProductById(productId);
 
       if (!product) {
         return res.status(404).json({
@@ -291,7 +301,7 @@ router.get('/:id',
     } catch (error: any) {
       logger.error('Error fetching product', {
         error: error.message,
-        productId: req.params.id
+        productId: parseIntId(req.params.id)
       });
       
       res.status(500).json({
@@ -412,7 +422,7 @@ router.put('/:id',
       const updateData: UpdateProductRequest = req.body;
       const userId = req.user?.userId;
 
-      const product = await ProductService.updateProduct(req.params.id, updateData, userId);
+      const product = await ProductService.updateProduct(parseIntId(req.params.id), updateData, userId);
 
       res.json({
         success: true,
@@ -422,7 +432,7 @@ router.put('/:id',
     } catch (error: any) {
       logger.error('Error updating product', {
         error: error.message,
-        productId: req.params.id,
+        productId: parseIntId(req.params.id),
         userId: req.user?.userId
       });
 
@@ -456,7 +466,7 @@ router.delete('/:id',
       }
 
       const userId = req.user?.userId;
-      await ProductService.deleteProduct(req.params.id, userId);
+      await ProductService.deleteProduct(parseIntId(req.params.id), userId);
 
       res.json({
         success: true,
@@ -465,7 +475,7 @@ router.delete('/:id',
     } catch (error: any) {
       logger.error('Error deleting product', {
         error: error.message,
-        productId: req.params.id,
+        productId: parseIntId(req.params.id),
         userId: req.user?.userId
       });
 
@@ -505,7 +515,7 @@ router.post('/:id/stock',
       const userId = req.user?.userId;
 
       const product = await ProductService.updateStock(
-        req.params.id,
+        parseIntId(req.params.id),
         quantity,
         operation,
         userId
@@ -524,7 +534,7 @@ router.post('/:id/stock',
     } catch (error: any) {
       logger.error('Error updating stock', {
         error: error.message,
-        productId: req.params.id,
+        productId: parseIntId(req.params.id),
         userId: req.user?.userId,
         operation: req.body.operation,
         quantity: req.body.quantity

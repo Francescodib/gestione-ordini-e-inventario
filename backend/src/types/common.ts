@@ -116,7 +116,7 @@ export interface Statistics {
  * ID parameter interface
  */
 export interface IdParams {
-  id: string;
+  id: number;
 }
 
 /**
@@ -168,7 +168,7 @@ export interface BulkOperationResult {
   total: number;
   processed: number;
   errors: Array<{
-    id: string;
+    id: number;
     error: string;
   }>;
 }

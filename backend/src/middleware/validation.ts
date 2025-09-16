@@ -133,14 +133,16 @@ export function validateHeaders(schema: Joi.Schema, options?: ValidationOptions)
 }
 
 /**
- * Schema for validating MongoDB ObjectId-like strings (for Prisma IDs)
+ * Schema for validating integer IDs (auto increment)
  */
 export const idSchema = Joi.object({
-  id: Joi.string()
-    .pattern(new RegExp('^[a-zA-Z0-9]{25}$'))
+  id: Joi.number()
+    .integer()
+    .positive()
     .required()
     .messages({
-      'string.pattern.base': 'Invalid ID format',
+      'number.integer': 'ID must be a valid integer',
+      'number.positive': 'ID must be positive',
       'any.required': 'ID is required'
     })
 });

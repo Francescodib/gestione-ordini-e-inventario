@@ -13,7 +13,7 @@ export enum UserRole {
 }
 
 export interface UserAttributes {
-  id: string;
+  id: number;
   username: string;
   email: string;
   password: string;
@@ -31,7 +31,7 @@ export interface UserAttributes {
 export interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'role' | 'isActive' | 'emailVerified' | 'avatar' | 'lastLogin' | 'createdAt' | 'updatedAt'> {}
 
 export class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
-  declare id: string;
+  declare id: number;
   declare username: string;
   declare email: string;
   declare password: string;
@@ -54,14 +54,9 @@ export class User extends Model<UserAttributes, UserCreationAttributes> implemen
 User.init(
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
-      defaultValue: () => {
-        // Generate cuid-like ID (simplified version)
-        const timestamp = Date.now().toString(36);
-        const randomPart = Math.random().toString(36).substr(2, 9);
-        return `c${timestamp}${randomPart}`;
-      }
+      autoIncrement: true
     },
     username: {
       type: DataTypes.STRING,

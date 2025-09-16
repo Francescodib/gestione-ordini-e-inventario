@@ -26,6 +26,15 @@ import { OrderStatus, PaymentStatus } from '../models';
 // Initialize router
 const router = express.Router();
 
+// Helper function to parse string ID to number
+const parseIntId = (id: string): number => {
+  const parsed = parseInt(id, 10);
+  if (isNaN(parsed) || parsed <= 0) {
+    throw new Error('Invalid ID format');
+  }
+  return parsed;
+};
+
 // ==========================================
 // ADMIN/MANAGER ROUTES (protected)
 // These must come before /:id route
@@ -403,7 +412,7 @@ router.get('/:id',
         ? req.user?.userId 
         : undefined;
 
-      const order = await OrderService.getOrderById(req.params.id, userId);
+      const order = await OrderService.getOrderById(parseIntId(req.params.id), userId);
 
       if (!order) {
         return res.status(404).json({
@@ -419,7 +428,7 @@ router.get('/:id',
     } catch (error: any) {
       logger.error('Error fetching order', {
         error: error.message,
-        orderId: req.params.id,
+        orderId: parseIntId(req.params.id),
         userId: req.user?.userId
       });
       
@@ -459,7 +468,7 @@ router.put('/:id/status',
       const updateData: UpdateOrderRequest = req.body;
       const userId = req.user?.userId;
 
-      const order = await OrderService.updateOrder(req.params.id, updateData, userId);
+      const order = await OrderService.updateOrder(parseIntId(req.params.id), updateData, userId);
 
       res.json({
         success: true,
@@ -469,7 +478,7 @@ router.put('/:id/status',
     } catch (error: any) {
       logger.error('Error updating order status', {
         error: error.message,
-        orderId: req.params.id,
+        orderId: parseIntId(req.params.id),
         userId: req.user?.userId
       });
 
@@ -513,7 +522,7 @@ router.put('/:id',
       const updateData: UpdateOrderRequest = req.body;
       const userId = req.user?.userId;
 
-      const order = await OrderService.updateOrder(req.params.id, updateData, userId);
+      const order = await OrderService.updateOrder(parseIntId(req.params.id), updateData, userId);
 
       res.json({
         success: true,
@@ -523,7 +532,7 @@ router.put('/:id',
     } catch (error: any) {
       logger.error('Error updating order', {
         error: error.message,
-        orderId: req.params.id,
+        orderId: parseIntId(req.params.id),
         userId: req.user?.userId
       });
 
@@ -556,7 +565,7 @@ router.post('/:id/cancel',
       // Check if user can cancel this order
       if (req.user?.role !== 'ADMIN' && req.user?.role !== 'MANAGER') {
         // Regular users can only cancel their own orders
-        const order = await OrderService.getOrderById(req.params.id, userId);
+        const order = await OrderService.getOrderById(parseIntId(req.params.id), userId);
         if (!order) {
           return res.status(404).json({
             success: false,
@@ -573,7 +582,7 @@ router.post('/:id/cancel',
         }
       }
 
-      const order = await OrderService.cancelOrder(req.params.id, reason, userId);
+      const order = await OrderService.cancelOrder(parseIntId(req.params.id), reason, userId);
 
       res.json({
         success: true,
@@ -583,7 +592,7 @@ router.post('/:id/cancel',
     } catch (error: any) {
       logger.error('Error cancelling order', {
         error: error.message,
-        orderId: req.params.id,
+        orderId: parseIntId(req.params.id),
         userId: req.user?.userId,
         reason: req.body.reason
       });

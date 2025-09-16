@@ -7,7 +7,7 @@ import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../config/sequelize';
 
 export interface UploadedFileAttributes {
-  id: string;
+  id: number;
   filename: string;
   originalName: string;
   mimetype: string;
@@ -15,7 +15,7 @@ export interface UploadedFileAttributes {
   filePath: string;
   url: string;
   type: string;
-  entityId?: string;
+  entityId?: number;
   entityType?: string;
   description?: string;
   createdAt: Date;
@@ -25,7 +25,7 @@ export interface UploadedFileAttributes {
 export interface UploadedFileCreationAttributes extends Optional<UploadedFileAttributes, 'id' | 'entityId' | 'entityType' | 'description' | 'createdAt' | 'updatedAt'> {}
 
 export class UploadedFile extends Model<UploadedFileAttributes, UploadedFileCreationAttributes> implements UploadedFileAttributes {
-  declare id: string;
+  declare id: number;
   declare filename: string;
   declare originalName: string;
   declare mimetype: string;
@@ -33,7 +33,7 @@ export class UploadedFile extends Model<UploadedFileAttributes, UploadedFileCrea
   declare filePath: string;
   declare url: string;
   declare type: string;
-  declare entityId?: string;
+  declare entityId?: number;
   declare entityType?: string;
   declare description?: string;
   declare readonly createdAt: Date;
@@ -43,14 +43,9 @@ export class UploadedFile extends Model<UploadedFileAttributes, UploadedFileCrea
 UploadedFile.init(
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
-      defaultValue: () => {
-        // Generate cuid-like ID (simplified version)
-        const timestamp = Date.now().toString(36);
-        const randomPart = Math.random().toString(36).substr(2, 9);
-        return `c${timestamp}${randomPart}`;
-      }
+      autoIncrement: true
     },
     filename: {
       type: DataTypes.STRING,
@@ -103,7 +98,7 @@ UploadedFile.init(
       }
     },
     entityId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: true,
       comment: 'ID of related entity (product, user, etc.)'
     },

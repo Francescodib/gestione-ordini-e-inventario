@@ -83,7 +83,7 @@ export class UserService {
   /**
    * Get user by ID
    */
-  static async getUserById(id: string): Promise<User | null> {
+  static async getUserById(id: number): Promise<User | null> {
     try {
       return User.findByPk(id, {
         attributes: {
@@ -130,7 +130,7 @@ export class UserService {
   /**
    * Update user
    */
-  static async updateUser(id: string, userData: UpdateUserRequest): Promise<User | null> {
+  static async updateUser(id: number, userData: UpdateUserRequest): Promise<User | null> {
     try {
       const updateData: any = {};
       
@@ -180,7 +180,7 @@ export class UserService {
   /**
    * Delete user (soft delete)
    */
-  static async deleteUser(id: string): Promise<boolean> {
+  static async deleteUser(id: number): Promise<boolean> {
     try {
       const [affectedRows] = await User.update(
         { isActive: false },
@@ -195,7 +195,7 @@ export class UserService {
   /**
    * Hard delete user
    */
-  static async hardDeleteUser(id: string): Promise<boolean> {
+  static async hardDeleteUser(id: number): Promise<boolean> {
     try {
       const deletedRows = await User.destroy({
         where: { id }
@@ -327,7 +327,7 @@ export class UserService {
   static async checkUserExists(
     email?: string, 
     username?: string, 
-    excludeId?: string
+    excludeId?: number
   ): Promise<{ emailExists: boolean; usernameExists: boolean }> {
     const conditions: any[] = [];
     

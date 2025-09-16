@@ -25,6 +25,15 @@ import Joi from 'joi';
 // Initialize router
 const router = express.Router();
 
+// Helper function to parse string ID to number
+const parseIntId = (id: string): number => {
+  const parsed = parseInt(id, 10);
+  if (isNaN(parsed) || parsed <= 0) {
+    throw new Error('Invalid ID format');
+  }
+  return parsed;
+};
+
 // ==========================================
 // PUBLIC ROUTES (no authentication required)
 // ==========================================
@@ -57,7 +66,7 @@ router.get('/',
         sortBy: sortBy as any,
         sortOrder: sortOrder as any,
         filters: {
-          parentId: parentId === 'null' ? null : (parentId as string),
+          parentId: parentId === 'null' ? null : (parentId ? parseIntId(parentId as string) : undefined),
           isActive: isActive !== undefined ? isActive === 'true' : undefined,
           hasProducts: hasProducts !== undefined ? hasProducts === 'true' : undefined,
           search: search as string
@@ -211,7 +220,7 @@ router.get('/:id/path',
   validateId(),
   async (req: Request, res: Response) => {
     try {
-      const path = await CategoryService.getCategoryPath(req.params.id);
+      const path = await CategoryService.getCategoryPath(parseIntId(req.params.id));
 
       res.json({
         success: true,
@@ -221,7 +230,7 @@ router.get('/:id/path',
     } catch (error: any) {
       logger.error('Error fetching category path', {
         error: error.message,
-        categoryId: req.params.id
+        categoryId: parseIntId(req.params.id)
       });
       
       res.status(500).json({
@@ -244,7 +253,7 @@ router.get('/:id',
       const { includeFullTree } = req.query;
       
       const category = await CategoryService.getCategoryById(
-        req.params.id, 
+        parseIntId(req.params.id), 
         includeFullTree === 'true'
       );
 
@@ -262,7 +271,7 @@ router.get('/:id',
     } catch (error: any) {
       logger.error('Error fetching category', {
         error: error.message,
-        categoryId: req.params.id
+        categoryId: parseIntId(req.params.id)
       });
       
       res.status(500).json({
@@ -349,7 +358,7 @@ router.put('/:id',
       const updateData: UpdateCategoryRequest = req.body;
       const userId = req.user?.userId;
 
-      const category = await CategoryService.updateCategory(req.params.id, updateData, userId);
+      const category = await CategoryService.updateCategory(parseIntId(req.params.id), updateData, userId);
 
       res.json({
         success: true,
@@ -359,7 +368,7 @@ router.put('/:id',
     } catch (error: any) {
       logger.error('Error updating category', {
         error: error.message,
-        categoryId: req.params.id,
+        categoryId: parseIntId(req.params.id),
         userId: req.user?.userId
       });
 
@@ -395,7 +404,7 @@ router.delete('/:id',
       }
 
       const userId = req.user?.userId;
-      await CategoryService.deleteCategory(req.params.id, userId);
+      await CategoryService.deleteCategory(parseIntId(req.params.id), userId);
 
       res.json({
         success: true,
@@ -404,7 +413,7 @@ router.delete('/:id',
     } catch (error: any) {
       logger.error('Error deleting category', {
         error: error.message,
-        categoryId: req.params.id,
+        categoryId: parseIntId(req.params.id),
         userId: req.user?.userId
       });
 
@@ -448,7 +457,7 @@ router.put('/:id/move',
       const userId = req.user?.userId;
 
       const category = await CategoryService.moveCategory(
-        req.params.id,
+        parseIntId(req.params.id),
         newParentId,
         userId
       );
@@ -461,7 +470,7 @@ router.put('/:id/move',
     } catch (error: any) {
       logger.error('Error moving category', {
         error: error.message,
-        categoryId: req.params.id,
+        categoryId: parseIntId(req.params.id),
         newParentId: req.body.newParentId,
         userId: req.user?.userId
       });

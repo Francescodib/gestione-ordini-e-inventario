@@ -15,7 +15,7 @@ import { Op, Transaction, WhereOptions, FindOptions, Includeable } from 'sequeli
  * Interfaces for order operations
  */
 export interface CreateOrderItemRequest {
-  productId: string;
+  productId: number;
   quantity: number;
   unitPrice?: number; // Optional, will be fetched from product if not provided
 }
@@ -63,20 +63,20 @@ export interface UpdateOrderRequest {
 export interface OrderWithDetails extends Order {
   items?: Array<OrderItem & {
     product?: {
-      id: string;
+      id: number;
       name: string;
       sku: string;
       price: number;
       stock: number;
       category?: {
-        id: string;
+        id: number;
         name: string;
         slug: string;
       };
     };
   }>;
   user?: {
-    id: string;
+    id: number;
     email: string;
     firstName: string;
     lastName: string;
@@ -86,7 +86,7 @@ export interface OrderWithDetails extends Order {
 export interface OrderFilters {
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
-  userId?: string;
+  userId?: number;
   dateFrom?: Date;
   dateTo?: Date;
   minTotal?: number;
@@ -115,7 +115,7 @@ export interface OrderStats {
   totalRevenue: number;
   averageOrderValue: number;
   topProducts: Array<{
-    productId: string;
+    productId: number;
     productName: string;
     sku: string;
     totalQuantity: number;
@@ -140,7 +140,7 @@ export class OrderService {
   /**
    * Create a new order
    */
-  static async createOrder(orderData: CreateOrderRequest, userId: string): Promise<OrderWithDetails> {
+  static async createOrder(orderData: CreateOrderRequest, userId: number): Promise<OrderWithDetails> {
     const transaction = await sequelize.transaction();
     try {
       const startTime = Date.now();
@@ -438,7 +438,7 @@ export class OrderService {
   /**
    * Get order by ID with full details
    */
-  static async getOrderById(id: string, userId?: string): Promise<OrderWithDetails | null> {
+  static async getOrderById(id: number, userId?: number): Promise<OrderWithDetails | null> {
     try {
       const startTime = Date.now();
 
@@ -489,7 +489,7 @@ export class OrderService {
   /**
    * Get order by order number
    */
-  static async getOrderByNumber(orderNumber: string, userId?: string): Promise<OrderWithDetails | null> {
+  static async getOrderByNumber(orderNumber: string, userId?: number): Promise<OrderWithDetails | null> {
     try {
       const whereClause: WhereOptions = { orderNumber };
       if (userId) {
@@ -533,7 +533,7 @@ export class OrderService {
   /**
    * Update order
    */
-  static async updateOrder(id: string, updateData: UpdateOrderRequest, adminUserId?: string): Promise<OrderWithDetails> {
+  static async updateOrder(id: number, updateData: UpdateOrderRequest, adminUserId?: number): Promise<OrderWithDetails> {
     const transaction = await sequelize.transaction();
     try {
       const startTime = Date.now();
@@ -637,7 +637,7 @@ export class OrderService {
   /**
    * Cancel order (soft delete with stock restoration)
    */
-  static async cancelOrder(id: string, reason: string, userId?: string): Promise<OrderWithDetails> {
+  static async cancelOrder(id: number, reason: string, userId?: number): Promise<OrderWithDetails> {
     try {
       return await this.updateOrder(id, {
         status: OrderStatus.CANCELLED,
@@ -699,7 +699,7 @@ export class OrderService {
   /**
    * Restore stock when order is cancelled
    */
-  private static async restoreOrderStock(order: Order & { items?: OrderItem[] }, userId?: string): Promise<void> {
+  private static async restoreOrderStock(order: Order & { items?: OrderItem[] }, userId?: number): Promise<void> {
     try {
       if (order.items) {
         for (const item of order.items) {
@@ -866,7 +866,7 @@ export class OrderService {
   /**
    * Get user's orders
    */
-  static async getUserOrders(userId: string, options: OrderSearchOptions = {}): Promise<{
+  static async getUserOrders(userId: number, options: OrderSearchOptions = {}): Promise<{
     orders: OrderWithDetails[];
     total: number;
     page: number;

@@ -7,8 +7,8 @@ import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../config/sequelize';
 
 export interface UserAvatarAttributes {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   filename: string;
   originalName: string;
   smallPath: string;
@@ -23,8 +23,8 @@ export interface UserAvatarAttributes {
 export interface UserAvatarCreationAttributes extends Optional<UserAvatarAttributes, 'id' | 'createdAt' | 'updatedAt'> {}
 
 export class UserAvatar extends Model<UserAvatarAttributes, UserAvatarCreationAttributes> implements UserAvatarAttributes {
-  declare id: string;
-  declare userId: string;
+  declare id: number;
+  declare userId: number;
   declare filename: string;
   declare originalName: string;
   declare smallPath: string;
@@ -39,17 +39,12 @@ export class UserAvatar extends Model<UserAvatarAttributes, UserAvatarCreationAt
 UserAvatar.init(
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
-      defaultValue: () => {
-        // Generate cuid-like ID (simplified version)
-        const timestamp = Date.now().toString(36);
-        const randomPart = Math.random().toString(36).substr(2, 9);
-        return `c${timestamp}${randomPart}`;
-      }
+      autoIncrement: true
     },
     userId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
       unique: true,
       references: {

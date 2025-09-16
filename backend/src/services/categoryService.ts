@@ -17,7 +17,7 @@ export interface CreateCategoryRequest {
   name: string;
   description: string;
   slug?: string;
-  parentId?: string | null;
+  parentId?: number | null;
   sortOrder?: number;
   isActive?: boolean;
 }
@@ -26,7 +26,7 @@ export interface UpdateCategoryRequest {
   name?: string;
   description?: string;
   slug?: string;
-  parentId?: string | null;
+  parentId?: number | null;
   sortOrder?: number;
   isActive?: boolean;
 }
@@ -35,7 +35,7 @@ export interface CategoryWithChildren extends Category {
   parent?: Category;
   children?: CategoryWithChildren[];
   products?: Array<{
-    id: string;
+    id: number;
     name: string;
     sku: string;
     price: number;
@@ -48,7 +48,7 @@ export interface CategoryWithChildren extends Category {
 
 export interface CategoryFilters {
   isActive?: boolean;
-  parentId?: string | null;
+  parentId?: number | null;
   hasProducts?: boolean;
   level?: number;
   search?: string;
@@ -74,7 +74,7 @@ export interface CategoryStats {
   maxDepth: number;
   averageProductsPerCategory: number;
   topCategoriesByProducts: Array<{
-    categoryId: string;
+    categoryId: number;
     categoryName: string;
     productCount: number;
     depth: number;
@@ -93,7 +93,7 @@ export class CategoryService {
   /**
    * Create a new category
    */
-  static async createCategory(categoryData: CreateCategoryRequest, userId?: string): Promise<CategoryWithChildren> {
+  static async createCategory(categoryData: CreateCategoryRequest, userId?: number): Promise<CategoryWithChildren> {
     try {
       const startTime = Date.now();
 
@@ -338,7 +338,7 @@ export class CategoryService {
   /**
    * Get category by ID with full details
    */
-  static async getCategoryById(id: string, includeFullTree: boolean = false): Promise<CategoryWithChildren | null> {
+  static async getCategoryById(id: number, includeFullTree: boolean = false): Promise<CategoryWithChildren | null> {
     try {
       const startTime = Date.now();
       
@@ -444,7 +444,7 @@ export class CategoryService {
   /**
    * Update category
    */
-  static async updateCategory(id: string, updateData: UpdateCategoryRequest, userId?: string): Promise<CategoryWithChildren> {
+  static async updateCategory(id: number, updateData: UpdateCategoryRequest, userId?: number): Promise<CategoryWithChildren> {
     try {
       const startTime = Date.now();
 
@@ -595,7 +595,7 @@ export class CategoryService {
   /**
    * Delete category (soft delete)
    */
-  static async deleteCategory(id: string, userId?: string): Promise<boolean> {
+  static async deleteCategory(id: number, userId?: number): Promise<boolean> {
     try {
       const startTime = Date.now();
 
@@ -679,7 +679,7 @@ export class CategoryService {
   /**
    * Get category tree (hierarchical structure)
    */
-  static async getCategoryTree(rootId?: string): Promise<CategoryWithChildren[]> {
+  static async getCategoryTree(rootId?: number): Promise<CategoryWithChildren[]> {
     try {
       const startTime = Date.now();
 
@@ -772,10 +772,10 @@ export class CategoryService {
   /**
    * Get category path (breadcrumb)
    */
-  static async getCategoryPath(id: string): Promise<Category[]> {
+  static async getCategoryPath(id: number): Promise<Category[]> {
     try {
       const path: Category[] = [];
-      let currentId: string | null = id;
+      let currentId: number | null = id;
 
       while (currentId) {
         const category = await Category.findByPk(currentId);
@@ -798,7 +798,7 @@ export class CategoryService {
   /**
    * Move category to new parent
    */
-  static async moveCategory(categoryId: string, newParentId: string | null, userId?: string): Promise<CategoryWithChildren> {
+  static async moveCategory(categoryId: number, newParentId: number | null, userId?: number): Promise<CategoryWithChildren> {
     try {
       // Validate that the move doesn't create circular reference
       if (newParentId) {
@@ -936,8 +936,8 @@ export class CategoryService {
   /**
    * Check for circular reference in category hierarchy
    */
-  private static async checkCircularReference(categoryId: string, parentId: string): Promise<boolean> {
-    let currentParentId: string | null = parentId;
+  private static async checkCircularReference(categoryId: number, parentId: number): Promise<boolean> {
+    let currentParentId: number | null = parentId;
 
     while (currentParentId) {
       if (currentParentId === categoryId) {

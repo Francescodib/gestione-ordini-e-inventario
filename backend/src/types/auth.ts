@@ -10,7 +10,7 @@ import { AuditFields, PaginationQuery, Statistics } from './common';
  * User interface (complete)
  */
 export interface User extends AuditFields {
-  id: string;
+  id: number;
   username: string;
   email: string;
   firstName?: string;
@@ -62,7 +62,7 @@ export interface UserProfile {
  * Public user interface (for API responses)
  */
 export interface PublicUser {
-  id: string;
+  id: number;
   username: string;
   email: string;
   firstName?: string;
@@ -204,18 +204,18 @@ export interface UserStatistics extends Statistics {
   verified: number;
   unverified: number;
   recentRegistrations: Array<{
-    id: string;
+    id: number;
     username: string;
     email: string;
     createdAt: Date;
   }>;
   recentLogins: Array<{
-    id: string;
+    id: number;
     username: string;
     lastLogin: Date;
   }>;
   mostActive: Array<{
-    id: string;
+    id: number;
     username: string;
     loginCount: number;
     lastLogin: Date;
@@ -226,7 +226,7 @@ export interface UserStatistics extends Statistics {
  * JWT token payload
  */
 export interface JwtPayload {
-  userId: string;
+  userId: number;
   email: string;
   role: UserRole;
   iat: number;
@@ -238,8 +238,8 @@ export interface JwtPayload {
  * Authentication session
  */
 export interface AuthSession {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   token: string;
   refreshToken?: string;
   expiresAt: Date;
@@ -314,11 +314,11 @@ export interface RolePermissions {
  * User activity log
  */
 export interface UserActivity extends AuditFields {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   action: string;
   resource?: string;
-  resourceId?: string;
+  resourceId?: number;
   details?: any;
   ipAddress?: string;
   userAgent?: string;
@@ -331,8 +331,8 @@ export interface UserActivity extends AuditFields {
  * User authentication provider (for OAuth)
  */
 export interface AuthProvider {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   provider: 'google' | 'facebook' | 'github' | 'microsoft';
   providerId: string;
   email?: string;
@@ -347,8 +347,8 @@ export interface AuthProvider {
  * Two-factor authentication
  */
 export interface TwoFactorAuth {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   secret: string;
   backupCodes: string[];
   isEnabled: boolean;
@@ -360,8 +360,8 @@ export interface TwoFactorAuth {
  * Account verification
  */
 export interface AccountVerification {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   type: 'email' | 'phone';
   token: string;
   expiresAt: Date;
@@ -408,7 +408,7 @@ export interface UserPreferences {
  */
 export interface UserBulkOperation {
   action: 'activate' | 'deactivate' | 'verify' | 'delete' | 'changeRole';
-  userIds: string[];
+  userIds: number[];
   data?: {
     role?: UserRole;
     isActive?: boolean;
@@ -462,8 +462,8 @@ export interface PasswordRequirements {
  * Account lockout information
  */
 export interface AccountLockout {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   reason: 'failed_login' | 'suspicious_activity' | 'admin_action';
   lockedAt: Date;
   expiresAt?: Date;

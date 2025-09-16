@@ -24,9 +24,9 @@ export enum PaymentStatus {
 }
 
 export interface OrderAttributes {
-  id: string;
+  id: number;
   orderNumber: string;
-  userId: string;
+  userId: number;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   subtotal: number;
@@ -50,9 +50,9 @@ export interface OrderAttributes {
 export interface OrderCreationAttributes extends Optional<OrderAttributes, 'id' | 'status' | 'paymentStatus' | 'shippingCost' | 'taxAmount' | 'discountAmount' | 'currency' | 'billingAddress' | 'notes' | 'trackingNumber' | 'shippedAt' | 'deliveredAt' | 'cancelledAt' | 'cancelReason' | 'createdAt' | 'updatedAt'> {}
 
 export class Order extends Model<OrderAttributes, OrderCreationAttributes> implements OrderAttributes {
-  declare id: string;
+  declare id: number;
   declare orderNumber: string;
-  declare userId: string;
+  declare userId: number;
   declare status: OrderStatus;
   declare paymentStatus: PaymentStatus;
   declare subtotal: number;
@@ -113,14 +113,9 @@ export class Order extends Model<OrderAttributes, OrderCreationAttributes> imple
 Order.init(
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
-      defaultValue: () => {
-        // Generate cuid-like ID (simplified version)
-        const timestamp = Date.now().toString(36);
-        const randomPart = Math.random().toString(36).substr(2, 9);
-        return `c${timestamp}${randomPart}`;
-      }
+      autoIncrement: true
     },
     orderNumber: {
       type: DataTypes.STRING,
@@ -131,7 +126,7 @@ Order.init(
       }
     },
     userId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: 'users',

@@ -7,9 +7,9 @@ import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../config/sequelize';
 
 export interface OrderItemAttributes {
-  id: string;
-  orderId: string;
-  productId: string;
+  id: number;
+  orderId: number;
+  productId: number;
   name: string;
   sku: string;
   quantity: number;
@@ -20,9 +20,9 @@ export interface OrderItemAttributes {
 export interface OrderItemCreationAttributes extends Optional<OrderItemAttributes, 'id' | 'totalPrice'> {}
 
 export class OrderItem extends Model<OrderItemAttributes, OrderItemCreationAttributes> implements OrderItemAttributes {
-  declare id: string;
-  declare orderId: string;
-  declare productId: string;
+  declare id: number;
+  declare orderId: number;
+  declare productId: number;
   declare name: string;
   declare sku: string;
   declare quantity: number;
@@ -38,17 +38,12 @@ export class OrderItem extends Model<OrderItemAttributes, OrderItemCreationAttri
 OrderItem.init(
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
-      defaultValue: () => {
-        // Generate cuid-like ID (simplified version)
-        const timestamp = Date.now().toString(36);
-        const randomPart = Math.random().toString(36).substr(2, 9);
-        return `c${timestamp}${randomPart}`;
-      }
+      autoIncrement: true
     },
     orderId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: 'orders',
@@ -57,7 +52,7 @@ OrderItem.init(
       onDelete: 'CASCADE'
     },
     productId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: 'products',

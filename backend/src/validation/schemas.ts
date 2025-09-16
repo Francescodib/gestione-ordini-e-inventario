@@ -229,9 +229,13 @@ export const createProductSchema = Joi.object({
       'string.pattern.base': 'Barcode must be 8-13 digits'
     }),
 
-  categoryId: Joi.string()
+  categoryId: Joi.number()
+    .integer()
+    .positive()
     .required()
     .messages({
+      'number.integer': 'Category ID must be a valid integer',
+      'number.positive': 'Category ID must be positive',
       'any.required': 'Category is required'
     }),
 
@@ -356,11 +360,14 @@ export const createCategorySchema = Joi.object({
       'string.pattern.base': 'Slug must contain only lowercase letters, numbers, and hyphens'
     }),
 
-  parentId: Joi.string()
+  parentId: Joi.number()
+    .integer()
+    .positive()
     .optional()
     .allow(null)
     .messages({
-      'string.base': 'Parent ID must be a valid category ID'
+      'number.integer': 'Parent ID must be a valid integer',
+      'number.positive': 'Parent ID must be positive'
     }),
 
   sortOrder: Joi.number()
@@ -391,9 +398,13 @@ export const updateCategorySchema = createCategorySchema.fork(
  * Schema for order item
  */
 export const orderItemSchema = Joi.object({
-  productId: Joi.string()
+  productId: Joi.number()
+    .integer()
+    .positive()
     .required()
     .messages({
+      'number.integer': 'Product ID must be a valid integer',
+      'number.positive': 'Product ID must be positive',
       'any.required': 'Product ID is required'
     }),
 
@@ -942,10 +953,13 @@ export const searchSchema = Joi.object({
       'string.max': 'Search query cannot exceed 100 characters'
     }),
 
-  category: Joi.string()
+  category: Joi.number()
+    .integer()
+    .positive()
     .optional()
     .messages({
-      'string.base': 'Category must be a valid category ID'
+      'number.integer': 'Category must be a valid integer',
+      'number.positive': 'Category must be positive'
     }),
 
   minPrice: Joi.number()

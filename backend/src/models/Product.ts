@@ -14,12 +14,12 @@ export enum ProductStatus {
 }
 
 export interface ProductAttributes {
-  id: string;
+  id: number;
   name: string;
   description: string;
   sku: string;
   barcode?: string;
-  categoryId: string;
+  categoryId: number;
   price: number;
   costPrice: number;
   stock: number;
@@ -39,12 +39,12 @@ export interface ProductAttributes {
 export interface ProductCreationAttributes extends Optional<ProductAttributes, 'id' | 'barcode' | 'stock' | 'minStock' | 'maxStock' | 'weight' | 'images' | 'tags' | 'status' | 'supplier' | 'dimensions' | 'isActive' | 'createdAt' | 'updatedAt'> {}
 
 export class Product extends Model<ProductAttributes, ProductCreationAttributes> implements ProductAttributes {
-  declare id: string;
+  declare id: number;
   declare name: string;
   declare description: string;
   declare sku: string;
   declare barcode?: string;
-  declare categoryId: string;
+  declare categoryId: number;
   declare price: number;
   declare costPrice: number;
   declare stock: number;
@@ -121,14 +121,9 @@ export class Product extends Model<ProductAttributes, ProductCreationAttributes>
 Product.init(
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
-      defaultValue: () => {
-        // Generate cuid-like ID (simplified version)
-        const timestamp = Date.now().toString(36);
-        const randomPart = Math.random().toString(36).substr(2, 9);
-        return `c${timestamp}${randomPart}`;
-      }
+      autoIncrement: true
     },
     name: {
       type: DataTypes.STRING,
@@ -157,7 +152,7 @@ Product.init(
       }
     },
     categoryId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: 'categories',
