@@ -271,15 +271,15 @@ export class SearchService {
       const offset = (page - 1) * limit;
       const searchTerms = query.split(' ').filter(term => term.length > 2);
 
-      // Build search conditions using Sequelize Op.iLike for case-insensitive search
+      // Build search conditions using Sequelize Op.like for SQLite compatibility (case-insensitive)
       const searchConditions = searchTerms.map(term => ({
         [Op.or]: [
-          { name: { [Op.iLike]: `%${term}%` } },
-          { description: { [Op.iLike]: `%${term}%` } },
-          { sku: { [Op.iLike]: `%${term}%` } },
-          { tags: { [Op.iLike]: `%${term}%` } },
-          { '$category.name$': { [Op.iLike]: `%${term}%` } },
-          { '$category.description$': { [Op.iLike]: `%${term}%` } }
+          { name: { [Op.like]: `%${term.toLowerCase()}%` } },
+          { description: { [Op.like]: `%${term.toLowerCase()}%` } },
+          { sku: { [Op.like]: `%${term.toLowerCase()}%` } },
+          { tags: { [Op.like]: `%${term.toLowerCase()}%` } },
+          { '$category.name$': { [Op.like]: `%${term.toLowerCase()}%` } },
+          { '$category.description$': { [Op.like]: `%${term.toLowerCase()}%` } }
         ]
       }));
 
@@ -388,12 +388,12 @@ export class SearchService {
       const offset = (page - 1) * limit;
       const searchTerms = query.split(' ').filter(term => term.length > 2);
 
-      // Build search conditions using Sequelize Op.iLike for case-insensitive search
+      // Build search conditions using Sequelize Op.like for SQLite compatibility (case-insensitive)
       const searchConditions = searchTerms.map(term => ({
         [Op.or]: [
-          { name: { [Op.iLike]: `%${term}%` } },
-          { description: { [Op.iLike]: `%${term}%` } },
-          { slug: { [Op.iLike]: `%${term}%` } }
+          { name: { [Op.like]: `%${term.toLowerCase()}%` } },
+          { description: { [Op.like]: `%${term.toLowerCase()}%` } },
+          { slug: { [Op.like]: `%${term.toLowerCase()}%` } }
         ]
       }));
 
@@ -500,11 +500,11 @@ export class SearchService {
           ...(userId ? [{ userId }] : []),
           {
             [Op.or]: [
-              { orderNumber: { [Op.iLike]: `%${query}%` } },
-              { '$user.firstName$': { [Op.iLike]: `%${query}%` } },
-              { '$user.lastName$': { [Op.iLike]: `%${query}%` } },
-              { '$user.email$': { [Op.iLike]: `%${query}%` } },
-              { notes: { [Op.iLike]: `%${query}%` } }
+              { orderNumber: { [Op.like]: `%${query.toLowerCase()}%` } },
+              { '$user.firstName$': { [Op.like]: `%${query.toLowerCase()}%` } },
+              { '$user.lastName$': { [Op.like]: `%${query.toLowerCase()}%` } },
+              { '$user.email$': { [Op.like]: `%${query.toLowerCase()}%` } },
+              { notes: { [Op.like]: `%${query.toLowerCase()}%` } }
             ]
           }
         ]
@@ -605,10 +605,10 @@ export class SearchService {
           { isActive: true },
           {
             [Op.or]: [
-              { firstName: { [Op.iLike]: `%${query}%` } },
-              { lastName: { [Op.iLike]: `%${query}%` } },
-              { email: { [Op.iLike]: `%${query}%` } },
-              { username: { [Op.iLike]: `%${query}%` } }
+              { firstName: { [Op.like]: `%${query.toLowerCase()}%` } },
+              { lastName: { [Op.like]: `%${query.toLowerCase()}%` } },
+              { email: { [Op.like]: `%${query.toLowerCase()}%` } },
+              { username: { [Op.like]: `%${query.toLowerCase()}%` } }
             ]
           }
         ]
@@ -683,8 +683,8 @@ export class SearchService {
         where: {
           isActive: true,
           [Op.or]: [
-            { name: { [Op.iLike]: `%${query}%` } },
-            { sku: { [Op.iLike]: `%${query}%` } }
+            { name: { [Op.like]: `%${query.toLowerCase()}%` } },
+            { sku: { [Op.like]: `%${query.toLowerCase()}%` } }
           ]
         },
         attributes: ['name', 'sku'],
@@ -695,7 +695,7 @@ export class SearchService {
       const categorySuggestions = await Category.findAll({
         where: {
           isActive: true,
-          name: { [Op.iLike]: `%${query}%` }
+          name: { [Op.like]: `%${query.toLowerCase()}%` }
         },
         attributes: ['name'],
         limit: 3
@@ -729,8 +729,8 @@ export class SearchService {
           where: {
             isActive: true,
             [Op.or]: [
-              { name: { [Op.iLike]: `${query}%` } },
-              { sku: { [Op.iLike]: `${query}%` } }
+              { name: { [Op.like]: `${query.toLowerCase()}%` } },
+              { sku: { [Op.like]: `${query.toLowerCase()}%` } }
             ]
           },
           attributes: ['name', 'sku'],
@@ -743,7 +743,7 @@ export class SearchService {
         const categories = await Category.findAll({
           where: {
             isActive: true,
-            name: { [Op.iLike]: `${query}%` }
+            name: { [Op.like]: `${query.toLowerCase()}%` }
           },
           attributes: ['name'],
           limit: 3

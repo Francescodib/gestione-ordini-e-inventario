@@ -23,8 +23,11 @@ import {
 } from "./middleware/logging";
 
 // Database
-import { connectDatabase, checkDatabaseHealth, disconnectDatabase, syncModels } from "./config/database";
+import { connectDatabase, checkDatabaseHealth, disconnectDatabase, syncModels, getDatabaseInfo } from "./config/database";
 import { createDemoUserIfNeeded } from "./scripts/createDemoUser";
+
+// Directory Setup
+import { setupRequiredDirectories } from "./utils/directorySetup";
 
 // Routes
 import usersRoutes from "./routes/userRoutes";
@@ -66,20 +69,31 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 /**
- * Database Connection
- * Connessione al database SQLite con Sequelize prima di avviare il server
+ * Application Initialization
+ * Setup directories, database, and initial data
  */
-const initializeDatabase = async () => {
+const initializeApplication = async () => {
   try {
+    // 1. Setup required directories first
+    console.log('🚀 Initializing application...');
+    await setupRequiredDirectories();
+
+    // 2. Connect to database
     await connectDatabase();
-    await syncModels(); // Sync models with database
-    
-    // Crea utente demo se necessario (primo avvio)
+
+    // 3. Sync database models (create/update tables)
+    await syncModels();
+
+    // 4. Get database info for debugging
+    await getDatabaseInfo();
+
+    // 5. Create demo user if needed (first run)
     await createDemoUserIfNeeded();
-    
-    logger.info('Sequelize client initialized successfully');
+
+    logger.info('✅ Application initialization completed successfully');
   } catch (error) {
-    logger.error('Database initialization failed:', error);
+    logger.error('❌ Application initialization failed:', error);
+    console.error('Initialization error details:', error);
     process.exit(1);
   }
 };
@@ -277,8 +291,8 @@ app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
  */
 const startServer = async () => {
   try {
-    // Inizializza il database
-    await initializeDatabase();
+    // Initialize application (directories + database)
+    await initializeApplication();
     
     // Initialize monitoring system
     let systemMonitoring: SystemMonitoringService;

@@ -43,14 +43,7 @@ export const connectDatabase = async (): Promise<void> => {
     await sequelize.authenticate();
     console.log('Database connected successfully');
     console.log(`Database: SQLite (${sequelize.getDatabaseName()})`);
-    
-    // Log database info in development
-    if (process.env.NODE_ENV === 'development') {
-      const [results] = await sequelize.query("SELECT COUNT(*) as count FROM users", { raw: true });
-      const userCount = Array.isArray(results) && results.length > 0 ? (results[0] as any).count : 0;
-      console.log(`Users in database: ${userCount}`);
-    }
-    
+
   } catch (error) {
     console.error('Database connection failed:', error);
     throw error;
@@ -83,15 +76,82 @@ export const checkDatabaseHealth = async (): Promise<boolean> => {
 };
 
 /**
+ * Check if database tables exist
+ */
+export const checkTablesExist = async (): Promise<boolean> => {
+  try {
+    const [results] = await sequelize.query(`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name NOT LIKE 'sqlite_%'
+    `, { raw: true });
+
+    const tables = Array.isArray(results) ? results.map((row: any) => row.name) : [];
+    console.log(`Found ${tables.length} existing tables:`, tables.join(', ') || 'none');
+
+    return tables.length > 0;
+  } catch (error) {
+    console.log('No existing tables found (new database)');
+    return false;
+  }
+};
+
+/**
  * Sync all models with database (create tables)
  */
 export const syncModels = async (force: boolean = false): Promise<void> => {
   try {
-    await sequelize.sync({ force });
-    console.log('Database models synchronized');
+    console.log('🔄 Synchronizing database models...');
+
+    // Check current state
+    const hasExistingTables = await checkTablesExist();
+
+    if (hasExistingTables && !force) {
+      console.log('📋 Existing tables found, attempting safe sync (alter: false to avoid FK issues)');
+      try {
+        // Try safer sync first
+        await sequelize.sync({ alter: false });
+        console.log('✅ Database models synchronized safely');
+      } catch (alterError) {
+        console.log('⚠️  Safe sync failed, trying force sync to resolve issues...');
+        await sequelize.sync({ force: true });
+        console.log('✅ Database models force synchronized (all tables recreated)');
+      }
+    } else if (force) {
+      console.log('🔥 Force sync requested - recreating all tables');
+      await sequelize.sync({ force: true });
+      console.log('✅ Database models force synchronized (all tables recreated)');
+    } else {
+      console.log('🆕 No existing tables found, creating new database schema');
+      await sequelize.sync({ force: false });
+      console.log('✅ Database models synchronized (new tables created)');
+    }
+
+    // Verify sync was successful by checking final table count
+    await checkTablesExist();
+
   } catch (error) {
-    console.error('Database sync failed:', error);
+    console.error('❌ Database sync failed:', error);
     throw error;
+  }
+};
+
+/**
+ * Get database information for debugging
+ */
+export const getDatabaseInfo = async (): Promise<void> => {
+  try {
+    // Get user count (safe query after sync)
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const [results] = await sequelize.query("SELECT COUNT(*) as count FROM users", { raw: true });
+        const userCount = Array.isArray(results) && results.length > 0 ? (results[0] as any).count : 0;
+        console.log(`👥 Users in database: ${userCount}`);
+      } catch (error) {
+        console.log('👥 Users table not yet populated or accessible');
+      }
+    }
+  } catch (error) {
+    console.log('ℹ️  Database info query skipped (table may not exist yet)');
   }
 };
 

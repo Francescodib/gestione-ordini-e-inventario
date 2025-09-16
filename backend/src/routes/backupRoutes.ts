@@ -19,6 +19,53 @@ router.use(handleValidationErrors());
 const backupScheduler = BackupScheduler.getInstance(backupConfig);
 
 /**
+ * GET /api/backup/status
+ * Backup system status check (alias for /health)
+ */
+router.get('/status', async (req: Request, res: Response) => {
+  try {
+    const jobs = backupScheduler.getAllJobsStatus();
+    const activeJobs = jobs.filter(job => job.active);
+    const errorJobs = jobs.filter(job => job.status === 'error');
+
+    const status = {
+      status: errorJobs.length === 0 ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      scheduler: {
+        initialized: jobs.length > 0,
+        activeJobs: activeJobs.length,
+        totalJobs: jobs.length,
+        errorJobs: errorJobs.length
+      },
+      configuration: {
+        databaseBackupEnabled: backupConfig.database.enabled,
+        filesBackupEnabled: backupConfig.files.enabled,
+        localStorageEnabled: backupConfig.storage.local.enabled,
+        notificationsEnabled: backupConfig.notifications.enabled
+      },
+      storage: {
+        backupDirectory: backupConfig.storage.local.path,
+        retention: backupConfig.database.retention
+      }
+    };
+
+    res.json({
+      success: true,
+      message: 'Backup system is operational',
+      data: status
+    });
+
+  } catch (error: any) {
+    logger.error('Backup status check failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Backup status check failed',
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/backup/health
  * Backup system health check
  */

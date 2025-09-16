@@ -216,11 +216,25 @@ export class ProductService {
       } = options;
 
       // Build where clause from filters
-      const whereClause: WhereOptions = {
-        isActive: filters.isActive !== false ? true : undefined,
-        status: filters.status,
-        categoryId: filters.categoryId,
-      };
+      const whereClause: WhereOptions = {};
+
+      // Only add isActive filter if it's explicitly set
+      if (filters.isActive !== undefined) {
+        whereClause.isActive = filters.isActive;
+      } else {
+        // Default to showing only active products
+        whereClause.isActive = true;
+      }
+
+      // Only add status filter if it's defined
+      if (filters.status !== undefined) {
+        whereClause.status = filters.status;
+      }
+
+      // Only add categoryId filter if it's defined
+      if (filters.categoryId !== undefined) {
+        whereClause.categoryId = filters.categoryId;
+      }
 
       // Stock filters
       if (filters.inStock === true) {

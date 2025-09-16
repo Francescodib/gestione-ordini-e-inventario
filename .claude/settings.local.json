@@ -6,7 +6,8 @@
       "Bash(npm run build:*)",
       "Bash(grep:*)",
       "Bash(npm uninstall:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []
