@@ -7,7 +7,6 @@ import Card from '../components/Card';
 import Table from '../components/Table';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 
 const ProductsPage: React.FC = () => {
@@ -16,8 +15,8 @@ const ProductsPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
-  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || '');
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search')?.trim() || '');
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoryId') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -30,12 +29,29 @@ const ProductsPage: React.FC = () => {
       setLoading(true);
       setError('');
 
+      const searchValue = searchParams.get('search');
+      const categoryValue = searchParams.get('categoryId');
+      const statusValue = searchParams.get('status');
+      const pageParam = searchParams.get('page');
+      const limitParam = searchParams.get('limit');
+
+      let categoryId: number | undefined;
+      if (categoryValue) {
+        const parsedCategory = Number.parseInt(categoryValue, 10);
+        if (!Number.isNaN(parsedCategory)) {
+          categoryId = parsedCategory;
+        }
+      }
+
+      const pageNumber = Number.parseInt(pageParam || '1', 10);
+      const limitNumber = Number.parseInt(limitParam || '50', 10);
+
       const params = {
-        query: searchParams.get('search') || undefined,
-        category: searchParams.get('category') || undefined,
-        status: searchParams.get('status') || undefined,
-        page: parseInt(searchParams.get('page') || '1'),
-        limit: parseInt(searchParams.get('limit') || '50')
+        search: searchValue?.trim() ? searchValue.trim() : undefined,
+        categoryId,
+        status: statusValue || undefined,
+        page: Number.isNaN(pageNumber) ? 1 : pageNumber,
+        limit: Number.isNaN(limitNumber) ? 50 : limitNumber
       };
 
       const [productsResponse, categoriesResponse] = await Promise.all([
@@ -70,10 +86,11 @@ const ProductsPage: React.FC = () => {
     }
     
     if (selectedCategory) {
-      newParams.set('category', selectedCategory);
+      newParams.set('categoryId', selectedCategory);
     } else {
-      newParams.delete('category');
+      newParams.delete('categoryId');
     }
+    newParams.delete('category');
     
     if (statusFilter) {
       newParams.set('status', statusFilter);

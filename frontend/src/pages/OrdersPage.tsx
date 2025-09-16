@@ -7,7 +7,6 @@ import Card from '../components/Card';
 import Table from '../components/Table';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 
 const OrdersPage: React.FC = () => {
@@ -15,9 +14,9 @@ const OrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search')?.trim() || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
-  const [paymentFilter, setPaymentFilter] = useState(searchParams.get('payment') || '');
+  const [paymentFilter, setPaymentFilter] = useState(searchParams.get('paymentStatus') || '');
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -29,12 +28,19 @@ const OrdersPage: React.FC = () => {
       setLoading(true);
       setError('');
 
+      const searchValue = searchParams.get('search');
+      const pageParam = searchParams.get('page');
+      const limitParam = searchParams.get('limit');
+
+      const pageNumber = Number.parseInt(pageParam || '1', 10);
+      const limitNumber = Number.parseInt(limitParam || '50', 10);
+
       const params = {
-        query: searchParams.get('search') || undefined,
+        search: searchValue?.trim() ? searchValue.trim() : undefined,
         status: searchParams.get('status') || undefined,
-        paymentStatus: searchParams.get('payment') || undefined,
-        page: parseInt(searchParams.get('page') || '1'),
-        limit: parseInt(searchParams.get('limit') || '50')
+        paymentStatus: searchParams.get('paymentStatus') || undefined,
+        page: Number.isNaN(pageNumber) ? 1 : pageNumber,
+        limit: Number.isNaN(limitNumber) ? 50 : limitNumber
       };
 
       const response = await orderService.getAllOrders(params);
@@ -68,10 +74,11 @@ const OrdersPage: React.FC = () => {
     }
     
     if (paymentFilter) {
-      newParams.set('payment', paymentFilter);
+      newParams.set('paymentStatus', paymentFilter);
     } else {
-      newParams.delete('payment');
+      newParams.delete('paymentStatus');
     }
+    newParams.delete('payment');
     
     newParams.set('page', '1');
     setSearchParams(newParams);

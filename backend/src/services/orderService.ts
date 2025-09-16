@@ -350,18 +350,26 @@ export class OrderService {
       }
 
       // Search filter
-      if (filters.search) {
+      if (filters.search && filters.search.trim()) {
+        const trimmedSearch = filters.search.trim();
+        const normalizedSearch = trimmedSearch.toLowerCase();
         whereClause[Op.or] = [
-          { orderNumber: { [Op.iLike]: `%${filters.search}%` } },
-          { 
-            '$user.firstName$': { [Op.iLike]: `%${filters.search}%` }
-          },
-          { 
-            '$user.lastName$': { [Op.iLike]: `%${filters.search}%` }
-          },
-          { 
-            '$user.email$': { [Op.iLike]: `%${filters.search}%` }
-          }
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('orderNumber')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('user.firstName')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('user.lastName')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('user.email')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          )
         ];
       }
 

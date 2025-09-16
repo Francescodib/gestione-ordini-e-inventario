@@ -263,11 +263,22 @@ export class ProductService {
       }
 
       // Search filter
-      if (filters.search) {
+      if (filters.search && filters.search.trim()) {
+        const trimmedSearch = filters.search.trim();
+        const normalizedSearch = trimmedSearch.toLowerCase();
         (whereClause as any)[Op.or] = [
-          { name: { [Op.iLike]: `%${filters.search}%` } },
-          { description: { [Op.iLike]: `%${filters.search}%` } },
-          { sku: { [Op.iLike]: `%${filters.search.toUpperCase()}%` } },
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('name')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('description')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('sku')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          )
         ];
       }
 
@@ -738,12 +749,28 @@ export class ProductService {
       const { page = 1, limit = 10 } = options;
       const offset = (page - 1) * limit;
 
+      const trimmedQuery = query.trim();
+      if (!trimmedQuery) {
+        return { products: [], total: 0 };
+      }
+
+      const normalizedQuery = trimmedQuery.toLowerCase();
+
       const searchCondition = {
         isActive: true,
         [Op.or]: [
-          { name: { [Op.iLike]: `%${query}%` } },
-          { description: { [Op.iLike]: `%${query}%` } },
-          { sku: { [Op.iLike]: `%${query.toUpperCase()}%` } },
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('name')),
+            { [Op.like]: `%${normalizedQuery}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('description')),
+            { [Op.like]: `%${normalizedQuery}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('sku')),
+            { [Op.like]: `%${normalizedQuery}%` }
+          )
         ]
       };
 

@@ -4,6 +4,7 @@
  */
 
 import { User, UserRole } from '../models';
+import { sequelize } from '../config/database';
 import bcrypt from 'bcryptjs';
 import { Op, WhereOptions, fn, col } from 'sequelize';
 
@@ -271,14 +272,33 @@ export class UserService {
    * Search users
    */
   static async searchUsers(searchTerm: string): Promise<User[]> {
+    const trimmedSearch = searchTerm.trim();
+    if (!trimmedSearch) {
+      return [];
+    }
+
+    const normalizedSearch = trimmedSearch.toLowerCase();
+
     return User.findAll({
       where: {
         isActive: true,
         [Op.or]: [
-          { firstName: { [Op.iLike]: `%${searchTerm}%` } },
-          { lastName: { [Op.iLike]: `%${searchTerm}%` } },
-          { email: { [Op.iLike]: `%${searchTerm}%` } },
-          { username: { [Op.iLike]: `%${searchTerm}%` } }
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('firstName')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('lastName')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('email')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('username')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          )
         ]
       },
       attributes: {

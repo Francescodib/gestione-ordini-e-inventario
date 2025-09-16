@@ -71,13 +71,24 @@ export interface OrderItem {
 }
 
 export interface SearchFilters {
-  query?: string;
-  category?: string;
+  search?: string;
+  categoryId?: number;
+  status?: string;
+  paymentStatus?: string;
   minPrice?: number;
   maxPrice?: number;
-  status?: string;
+  inStock?: boolean;
+  lowStock?: boolean;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  tags?: string;
+  supplier?: string;
+  userId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  minTotal?: number;
+  maxTotal?: number;
+  hasTracking?: boolean;
 }
 
 export interface PaginationParams {
@@ -314,29 +325,65 @@ export const orderService = {
 
 export const searchService = {
   async searchProducts(query: string, filters?: SearchFilters): Promise<ApiResponse<Product[]>> {
-    const response = await api.get('/search/products', { 
-      params: { query, ...filters } 
-    });
+    const params: Record<string, unknown> = { q: query.trim() };
+
+    if (filters) {
+      if (filters.categoryId !== undefined) {
+        params.categoryIds = String(filters.categoryId);
+      }
+      if (filters.status) {
+        params.status = filters.status;
+      }
+      if (filters.minPrice !== undefined) {
+        params['price.min'] = filters.minPrice;
+      }
+      if (filters.maxPrice !== undefined) {
+        params['price.max'] = filters.maxPrice;
+      }
+      if (filters.inStock !== undefined) {
+        params.inStock = filters.inStock;
+      }
+      if (filters.sortBy) {
+        params.sortBy = filters.sortBy;
+      }
+      if (filters.sortOrder) {
+        params.sortOrder = filters.sortOrder;
+      }
+    }
+
+    const response = await api.get('/search/products', { params });
     return response.data;
   },
 
   async searchOrders(query: string, filters?: SearchFilters): Promise<ApiResponse<Order[]>> {
-    const response = await api.get('/search/orders', { 
-      params: { query, ...filters } 
-    });
+    const params: Record<string, unknown> = { q: query.trim() };
+
+    if (filters) {
+      if (filters.status) {
+        params.status = filters.status;
+      }
+      if (filters.dateFrom) {
+        params['date.from'] = filters.dateFrom;
+      }
+      if (filters.dateTo) {
+        params['date.to'] = filters.dateTo;
+      }
+    }
+
+    const response = await api.get('/search/orders', { params });
     return response.data;
   },
 
   async searchCategories(query: string): Promise<ApiResponse<Category[]>> {
     const response = await api.get('/search/categories', { 
-      params: { query } 
+      params: { q: query.trim() } 
     });
     return response.data;
   },
 
   async globalSearch(query: string): Promise<ApiResponse<any>> {
-    const response = await api.get('/search/global', { 
-      params: { query } 
+    const response = await api.get('/search', { 
+      params: { q: query.trim() } 
     });
     return response.data;
   }

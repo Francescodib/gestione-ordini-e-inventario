@@ -234,11 +234,22 @@ export class CategoryService {
       }
 
       // Search filter
-      if (filters.search) {
+      if (filters.search && filters.search.trim()) {
+        const trimmedSearch = filters.search.trim();
+        const normalizedSearch = trimmedSearch.toLowerCase();
         (whereClause as any)[Op.or] = [
-          { name: { [Op.iLike]: `%${filters.search}%` } },
-          { description: { [Op.iLike]: `%${filters.search}%` } },
-          { slug: { [Op.iLike]: `%${filters.search}%` } },
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('name')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('description')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          ),
+          sequelize.where(
+            sequelize.fn('lower', sequelize.col('slug')),
+            { [Op.like]: `%${normalizedSearch}%` }
+          )
         ];
       }
 
