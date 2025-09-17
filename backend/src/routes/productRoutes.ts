@@ -44,7 +44,17 @@ const parseIntId = (id: string): number => {
  * Get products with filtering and pagination (public access for catalog)
  */
 router.get('/',
-  validateQuery(paginationSchema, { allowUnknown: true }),
+  validateQuery(paginationSchema.keys({
+    search: Joi.string().optional(),
+    categoryId: Joi.string().optional(),
+    status: Joi.string().valid('ACTIVE', 'INACTIVE', 'DISCONTINUED', 'OUT_OF_STOCK').optional(),
+    inStock: Joi.string().valid('true', 'false').optional(),
+    lowStock: Joi.string().valid('true', 'false').optional(),
+    priceMin: Joi.number().optional(),
+    priceMax: Joi.number().optional(),
+    tags: Joi.string().optional(),
+    supplier: Joi.string().optional()
+  })),
   async (req: Request, res: Response) => {
     try {
       const {
@@ -63,6 +73,7 @@ router.get('/',
         supplier
       } = req.query;
 
+
       const options: ProductSearchOptions = {
         page: Number(page),
         limit: Number(limit),
@@ -71,11 +82,11 @@ router.get('/',
         filters: {
           categoryId: categoryId ? parseIntId(categoryId as string) : undefined,
           status: status as any,
-          inStock: inStock === 'true',
-          lowStock: lowStock === 'true',
+          inStock: inStock !== undefined ? inStock === 'true' : undefined,
+          lowStock: lowStock !== undefined ? lowStock === 'true' : undefined,
           priceMin: priceMin ? Number(priceMin) : undefined,
           priceMax: priceMax ? Number(priceMax) : undefined,
-          search: search as string,
+          search: search ? String(search).trim() : undefined,
           tags: tags ? (tags as string).split(',') : undefined,
           supplier: supplier as string
         }

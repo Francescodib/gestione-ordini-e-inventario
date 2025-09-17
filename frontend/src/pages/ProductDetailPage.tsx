@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { productService } from '../services/api';
 import type { Product } from '../services/api';
@@ -14,31 +14,48 @@ const ProductDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [requestInProgress, setRequestInProgress] = useState(false);
+
 
   useEffect(() => {
-    if (id) {
-      loadProduct(id);
-    }
-  }, [id]);
+    if (!id || requestInProgress) return;
 
-  const loadProduct = async (productId: string) => {
-    try {
-      setLoading(true);
-      setError('');
+    let isSubscribed = true;
 
-      const response = await productService.getProductById(productId);
+    const loadProduct = async () => {
+      if (!isSubscribed) return;
 
-      if (response.success) {
-        setProduct(response.data);
-      } else {
-        throw new Error(response.message || 'Prodotto non trovato');
+      try {
+        setRequestInProgress(true);
+        setLoading(true);
+        setError('');
+
+        const response = await productService.getProductById(id);
+
+        if (!isSubscribed) return; // Prevent state update if component unmounted
+
+        if (response.success) {
+          setProduct(response.data);
+        } else {
+          throw new Error(response.message || 'Prodotto non trovato');
+        }
+      } catch (error: any) {
+        if (!isSubscribed) return; // Prevent state update if component unmounted
+        setError(error.message || 'Errore durante il caricamento del prodotto');
+      } finally {
+        if (isSubscribed) {
+          setLoading(false);
+          setRequestInProgress(false);
+        }
       }
-    } catch (error: any) {
-      setError(error.message || 'Errore durante il caricamento del prodotto');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    loadProduct();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [id]);
 
   const handleDelete = async () => {
     if (!product || !confirm('Sei sicuro di voler eliminare questo prodotto?')) {
@@ -213,7 +230,7 @@ const ProductDetailPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {product.tags && product.tags.length > 0 && (
+                  {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Tag</label>
                       <div className="mt-2 flex flex-wrap gap-2">

@@ -38,6 +38,7 @@ import searchRoutes from "./routes/searchRoutes";
 import fileRoutes from "./routes/fileRoutes";
 import backupRoutes from "./routes/backupRoutes";
 import monitoringRoutes, { setMonitoringServices } from "./routes/monitoringRoutes";
+import healthRoutes from "./routes/healthRoutes";
 
 // Middleware
 import { verifyToken } from "./middleware/auth";
@@ -66,7 +67,7 @@ dotenv.config();
 const app = express();
 
 // Configurazione della porta del server
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 /**
  * Application Initialization
@@ -182,6 +183,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/files", fileRoutes);
 app.use("/api/backup", backupRoutes);
 app.use("/api/monitoring", monitoringRoutes);
+app.use("/api/health", healthRoutes);
 
 /**
  * ROTTA PROTETTA - Esempio di endpoint che richiede autenticazione

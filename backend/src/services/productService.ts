@@ -116,7 +116,7 @@ export class ProductService {
   /**
    * Create a new product
    */
-  static async createProduct(productData: CreateProductRequest, userId?: string): Promise<Product> {
+  static async createProduct(productData: CreateProductRequest, userId?: string | number): Promise<Product> {
     try {
       const startTime = Date.now();
 
@@ -168,7 +168,7 @@ export class ProductService {
       logUtils.logDbOperation('CREATE', 'products', duration);
       
       if (userId) {
-        logUtils.logUserAction(userId, 'product_create', {
+        logUtils.logUserAction(String(userId), 'product_create', {
           productId: product.id,
           sku: product.sku,
           name: product.name
@@ -214,81 +214,57 @@ export class ProductService {
         filters = {}
       } = options;
 
-      // Build where clause from filters
-      const whereClause: WhereOptions = {};
+      // Build where clause from filters using proper AND/OR structure
+      const whereConditions: any[] = [];
 
-      // Only add isActive filter if it's explicitly set
+      // Always show active products (unless explicitly specified otherwise)
       if (filters.isActive !== undefined) {
-        whereClause.isActive = filters.isActive;
+        whereConditions.push({ isActive: filters.isActive });
       } else {
-        // Default to showing only active products
-        whereClause.isActive = true;
+        whereConditions.push({ isActive: true });
       }
 
-      // Only add status filter if it's defined
-      if (filters.status !== undefined) {
-        whereClause.status = filters.status;
-      }
-
-      // Only add categoryId filter if it's defined
-      if (filters.categoryId !== undefined) {
-        whereClause.categoryId = filters.categoryId;
-      }
-
-      // Stock filters
-      if (filters.inStock === true) {
-        whereClause.stock = { [Op.gt]: 0 };
-      } else if (filters.inStock === false) {
-        whereClause.stock = { [Op.lte]: 0 };
-      }
-
-      if (filters.lowStock === true) {
-        whereClause.stock = sequelize.where(
-          sequelize.col('stock'),
-          Op.lte,
-          sequelize.col('minStock')
-        );
-      }
-
-      // Price range filter
-      if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
-        whereClause.price = {};
-        if (filters.priceMin !== undefined) {
-          whereClause.price[Op.gte] = filters.priceMin;
-        }
-        if (filters.priceMax !== undefined) {
-          whereClause.price[Op.lte] = filters.priceMax;
-        }
-      }
-
-      // Search filter
+      // Add search conditions
       if (filters.search && filters.search.trim()) {
         const trimmedSearch = filters.search.trim();
-        const normalizedSearch = trimmedSearch.toLowerCase();
-        (whereClause as any)[Op.or] = [
-          sequelize.where(
-            sequelize.fn('lower', sequelize.col('name')),
-            { [Op.like]: `%${normalizedSearch}%` }
-          ),
-          sequelize.where(
-            sequelize.fn('lower', sequelize.col('description')),
-            { [Op.like]: `%${normalizedSearch}%` }
-          ),
-          sequelize.where(
-            sequelize.fn('lower', sequelize.col('sku')),
-            { [Op.like]: `%${normalizedSearch}%` }
-          )
-        ];
+        const searchTerm = `%${trimmedSearch}%`;
+
+        whereConditions.push({
+          [Op.or]: [
+            { name: { [Op.like]: searchTerm } },
+            { description: { [Op.like]: searchTerm } },
+            { sku: { [Op.like]: searchTerm } },
+            { tags: { [Op.like]: searchTerm } }
+          ]
+        });
       }
+
+      // Add other filters when restored
+      if (filters.status !== undefined) {
+        whereConditions.push({ status: filters.status });
+      }
+
+      if (filters.categoryId !== undefined) {
+        whereConditions.push({ categoryId: filters.categoryId });
+      }
+
+      // Combine all conditions with AND (always use AND operator for proper filtering)
+      const whereClause: WhereOptions = whereConditions.length > 0
+        ? { [Op.and]: whereConditions }
+        : {};
 
       // Calculate pagination
       const offset = (page - 1) * limit;
 
-      // Execute queries in parallel
+      // Execute queries with proper SQLite boolean handling
       const [products, total] = await Promise.all([
         Product.findAll({
           where: whereClause,
-          include: [{ model: Category, as: 'category' }],
+          include: [{
+            model: Category,
+            as: 'category',
+            required: false
+          }],
           order: [[sortBy, sortOrder.toUpperCase()]],
           offset,
           limit
@@ -355,7 +331,7 @@ export class ProductService {
   /**
    * Update product
    */
-  static async updateProduct(id: number, updateData: UpdateProductRequest, userId?: string): Promise<Product> {
+  static async updateProduct(id: number, updateData: UpdateProductRequest, userId?: string | number): Promise<Product> {
     try {
       const startTime = Date.now();
 
@@ -419,7 +395,7 @@ export class ProductService {
       logUtils.logDbOperation('UPDATE', 'products', duration);
 
       if (userId) {
-        logUtils.logUserAction(userId, 'product_update', {
+        logUtils.logUserAction(String(userId), 'product_update', {
           productId: product!.id,
           sku: product!.sku,
           changes: Object.keys(updateData)
@@ -448,7 +424,7 @@ export class ProductService {
   /**
    * Delete product (soft delete)
    */
-  static async deleteProduct(id: number, userId?: string): Promise<boolean> {
+  static async deleteProduct(id: number, userId?: string | number): Promise<boolean> {
     try {
       const startTime = Date.now();
 
@@ -491,7 +467,7 @@ export class ProductService {
       logUtils.logDbOperation('DELETE', 'products', duration);
 
       if (userId) {
-        logUtils.logUserAction(userId, 'product_delete', {
+        logUtils.logUserAction(String(userId), 'product_delete', {
           productId: id,
           sku: existingProduct.sku,
           method: orderItems ? 'soft' : 'hard'
@@ -517,7 +493,7 @@ export class ProductService {
   /**
    * Update product stock
    */
-  static async updateStock(id: number, quantity: number, operation: 'add' | 'subtract' = 'subtract', userId?: string): Promise<Product> {
+  static async updateStock(id: number, quantity: number, operation: 'add' | 'subtract' = 'subtract', userId?: string | number): Promise<Product> {
     try {
       const product = await Product.findByPk(id);
 
@@ -548,7 +524,7 @@ export class ProductService {
       });
 
       if (userId) {
-        logUtils.logUserAction(userId, 'stock_update', {
+        logUtils.logUserAction(String(userId), 'stock_update', {
           productId: id,
           operation,
           quantity,

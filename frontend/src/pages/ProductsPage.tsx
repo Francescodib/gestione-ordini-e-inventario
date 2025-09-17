@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { productService, categoryService } from '../services/api';
 import type { Product, Category } from '../services/api';
 import Layout from '../components/Layout';
@@ -11,6 +11,7 @@ import ErrorMessage from '../components/ErrorMessage';
 
 const ProductsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -336,8 +337,8 @@ const ProductsPage: React.FC = () => {
           loading={loading}
           emptyText="Nessun prodotto trovato"
           onRowClick={(product) => {
-            // Navigate to product detail or edit page
-            window.location.href = `/products/${product.id}`;
+            // Navigate to product detail page using React Router
+            navigate(`/products/${product.id}`);
           }}
         />
 

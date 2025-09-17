@@ -8,6 +8,7 @@
     "start": "node dist/server.js",
     "db:init": "tsx src/scripts/initDatabase.ts",
     "db:seed": "tsx src/scripts/seedDatabase.ts",
+    "db:reset": "tsx src/scripts/resetDatabase.ts",
     "db:verify": "tsx src/scripts/verifyDatabaseConsistency.ts",
     "db:demo-user": "tsx src/scripts/createDemoUser.ts",
     "test": "jest",

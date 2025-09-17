@@ -93,7 +93,7 @@ export class CategoryService {
   /**
    * Create a new category
    */
-  static async createCategory(categoryData: CreateCategoryRequest, userId?: number): Promise<CategoryWithChildren> {
+  static async createCategory(categoryData: CreateCategoryRequest, userId?: string | number): Promise<CategoryWithChildren> {
     try {
       const startTime = Date.now();
 
@@ -171,7 +171,7 @@ export class CategoryService {
       logUtils.logDbOperation('CREATE', 'categories', duration);
       
       if (userId) {
-        logUtils.logUserAction(userId, 'category_create', {
+        logUtils.logUserAction(String(userId), 'category_create', {
           categoryId: category.id,
           slug: category.slug,
           name: category.name,
@@ -455,7 +455,7 @@ export class CategoryService {
   /**
    * Update category
    */
-  static async updateCategory(id: number, updateData: UpdateCategoryRequest, userId?: number): Promise<CategoryWithChildren> {
+  static async updateCategory(id: number, updateData: UpdateCategoryRequest, userId?: string | number): Promise<CategoryWithChildren> {
     try {
       const startTime = Date.now();
 
@@ -577,9 +577,9 @@ export class CategoryService {
       logUtils.logDbOperation('UPDATE', 'categories', duration);
 
       if (userId) {
-        logUtils.logUserAction(userId, 'category_update', {
-          categoryId: category.id,
-          slug: category.slug,
+        logUtils.logUserAction(String(userId), 'category_update', {
+          categoryId: category!.id,
+          slug: category!.slug,
           changes: Object.keys(updateData)
         });
       }
@@ -606,7 +606,7 @@ export class CategoryService {
   /**
    * Delete category (soft delete)
    */
-  static async deleteCategory(id: number, userId?: number): Promise<boolean> {
+  static async deleteCategory(id: number, userId?: string | number): Promise<boolean> {
     try {
       const startTime = Date.now();
 
@@ -664,7 +664,7 @@ export class CategoryService {
       logUtils.logDbOperation('DELETE', 'categories', duration);
 
       if (userId) {
-        logUtils.logUserAction(userId, 'category_delete', {
+        logUtils.logUserAction(String(userId), 'category_delete', {
           categoryId: id,
           slug: existingCategory.slug,
           method: activeProducts.length > 0 ? 'soft' : 'hard'
@@ -809,7 +809,7 @@ export class CategoryService {
   /**
    * Move category to new parent
    */
-  static async moveCategory(categoryId: number, newParentId: number | null, userId?: number): Promise<CategoryWithChildren> {
+  static async moveCategory(categoryId: number, newParentId: number | null, userId?: string | number): Promise<CategoryWithChildren> {
     try {
       // Validate that the move doesn't create circular reference
       if (newParentId) {
@@ -822,7 +822,7 @@ export class CategoryService {
       const category = await this.updateCategory(categoryId, { parentId: newParentId }, userId);
       
       if (userId) {
-        logUtils.logUserAction(userId, 'category_move', {
+        logUtils.logUserAction(String(userId), 'category_move', {
           categoryId,
           newParentId,
           oldParentId: category.parent?.id || null
