@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { productService, categoryService } from '../services/api';
-import type { Product, Category } from '../services/api';
+import type { Category } from '../services/api';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -53,7 +53,7 @@ const ProductEditPage: React.FC = () => {
     if (id) {
       loadData();
     }
-  }, [id]);
+  }, [id]); // loadData is stable, id is from useParams
 
   const loadData = async () => {
     try {

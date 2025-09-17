@@ -21,7 +21,7 @@ const OrdersPage: React.FC = () => {
 
   useEffect(() => {
     loadOrders();
-  }, [searchParams]);
+  }, [searchParams]); // loadOrders depends on searchParams, which is stable
 
   const loadOrders = async () => {
     try {

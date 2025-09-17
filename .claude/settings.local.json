@@ -10,7 +10,15 @@
       "Bash(npm run dev:*)",
       "Bash(npm test)",
       "Bash(npm install:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npm start)",
+      "Bash(sqlite3:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd /c:*)",
+      "Bash(wmic process where \"name='node.exe'\" get processid,commandline:*)",
+      "Bash(wmic process where:*)"
     ],
     "deny": [],
     "ask": []

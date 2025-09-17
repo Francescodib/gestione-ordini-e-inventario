@@ -33,8 +33,7 @@ const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
   data,
   type,
   title,
-  height = 300,
-  showValues = true
+  height = 300
 }) => {
   const colors = [
     '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
@@ -49,7 +48,7 @@ const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
   }));
 
   // Custom tooltip formatter
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm">

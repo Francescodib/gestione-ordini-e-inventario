@@ -46,7 +46,7 @@ const SearchPage: React.FC = () => {
       setError('');
 
       const [
-        globalResponse,
+        ,
         productsResponse,
         ordersResponse,
         categoriesResponse

@@ -7,7 +7,6 @@ import Card from '../components/Card';
 import Table from '../components/Table';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -50,7 +49,7 @@ const UsersPage: React.FC = () => {
         setUsers(response.data);
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading users:', err);
       setError('Errore nel caricamento degli utenti');
     } finally {

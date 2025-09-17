@@ -51,7 +51,7 @@ export interface Order {
   discountAmount: number;
   totalAmount: number;
   currency: string;
-  shippingAddress: any;
+  shippingAddress: Record<string, unknown>;
   items: OrderItem[];
   user?: User;
   createdAt: string;
@@ -191,7 +191,7 @@ export const authService = {
     return response.data;
   },
 
-  async getUserStats(): Promise<ApiResponse<any>> {
+  async getUserStats(): Promise<ApiResponse<import('../types').UserStats>> {
     const response = await api.get('/users/stats');
     return response.data;
   },
@@ -248,7 +248,7 @@ export const productService = {
     return response.data;
   },
 
-  async getProductStats(): Promise<ApiResponse<any>> {
+  async getProductStats(): Promise<ApiResponse<import('../types').ProductStats>> {
     const response = await api.get('/products/stats');
     return response.data;
   }
@@ -285,7 +285,7 @@ export const categoryService = {
     return response.data;
   },
 
-  async getCategoryStats(): Promise<ApiResponse<any>> {
+  async getCategoryStats(): Promise<ApiResponse<import('../types').BaseStats>> {
     const response = await api.get('/categories/stats');
     return response.data;
   }
@@ -317,7 +317,7 @@ export const orderService = {
     return response.data;
   },
 
-  async getOrderStats(): Promise<ApiResponse<any>> {
+  async getOrderStats(): Promise<ApiResponse<import('../types').OrderStats>> {
     const response = await api.get('/orders/stats');
     return response.data;
   }
@@ -381,7 +381,7 @@ export const searchService = {
     return response.data;
   },
 
-  async globalSearch(query: string): Promise<ApiResponse<any>> {
+  async globalSearch(query: string): Promise<ApiResponse<{products: Product[], orders: Order[], categories: Category[]}>> {
     const response = await api.get('/search', { 
       params: { q: query.trim() } 
     });
@@ -390,34 +390,34 @@ export const searchService = {
 };
 
 export const monitoringService = {
-  async getSystemHealth(): Promise<ApiResponse<any>> {
+  async getSystemHealth(): Promise<ApiResponse<import('../types').SystemHealth>> {
     const response = await api.get('/monitoring/health');
     return response.data;
   },
 
-  async getSystemMetrics(): Promise<ApiResponse<any>> {
+  async getSystemMetrics(): Promise<ApiResponse<Record<string, unknown>>> {
     const response = await api.get('/monitoring/system');
     return response.data;
   },
 
-  async getDashboardStats(): Promise<ApiResponse<any>> {
+  async getDashboardStats(): Promise<ApiResponse<import('../types').DashboardStats>> {
     const response = await api.get('/monitoring/dashboard');
     return response.data;
   }
 };
 
 export const backupService = {
-  async getBackupStatus(): Promise<ApiResponse<any>> {
+  async getBackupStatus(): Promise<ApiResponse<{status: string, lastBackup?: string}>> {
     const response = await api.get('/backup/status');
     return response.data;
   },
 
-  async createBackup(): Promise<ApiResponse<any>> {
+  async createBackup(): Promise<ApiResponse<{backupId: string, timestamp: string}>> {
     const response = await api.post('/backup/create');
     return response.data;
   },
 
-  async getBackupHistory(): Promise<ApiResponse<any>> {
+  async getBackupHistory(): Promise<ApiResponse<{backupId: string, timestamp: string, size: number}[]>> {
     const response = await api.get('/backup/history');
     return response.data;
   }
@@ -425,7 +425,7 @@ export const backupService = {
 
 // File upload service
 export const fileService = {
-  async uploadFile(file: File, type: 'product' | 'avatar' | 'document'): Promise<ApiResponse<any>> {
+  async uploadFile(file: File, type: 'product' | 'avatar' | 'document'): Promise<ApiResponse<{fileId: string, url: string, thumbnails?: string[]}>> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type);

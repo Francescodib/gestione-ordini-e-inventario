@@ -5,7 +5,6 @@ import type { Product, User } from '../services/api';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
-import Input from '../components/Input';
 import ErrorMessage from '../components/ErrorMessage';
 
 interface OrderItem {

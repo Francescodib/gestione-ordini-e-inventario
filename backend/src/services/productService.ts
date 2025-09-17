@@ -6,7 +6,7 @@
 import { Product, ProductStatus, Category, OrderItem } from '../models';
 import { sequelize } from '../config/database';
 import { logger, logUtils } from '../config/logger';
-import { Op, WhereOptions } from 'sequelize';
+import { Op, WhereOptions, QueryTypes } from 'sequelize';
 
 /**
  * Service-specific interfaces adapted for Sequelize integer IDs
@@ -646,57 +646,40 @@ export class ProductService {
       ] = await Promise.all([
         // Total products count
         Product.count(),
-        
+
         // Active products count
         Product.count({
           where: { isActive: true, status: ProductStatus.ACTIVE }
         }),
-        
+
         // Out of stock products count
         Product.count({
           where: { isActive: true, stock: 0 }
         }),
-        
+
         // Low stock products count
-        Product.count({
-          where: {
-            isActive: true,
-            stock: {
-              [Op.lte]: sequelize.col('minStock'),
-              [Op.gt]: 0
-            }
-          }
-        }),
-        
+        sequelize.query(`
+          SELECT COUNT(*) as count
+          FROM products
+          WHERE isActive = 1 AND stock > 0 AND stock <= minStock
+        `, { type: QueryTypes.SELECT }).then((result: any) => result[0]?.count || 0),
+
         // Value statistics - using separate aggregations for sum and average
-        Product.findAll({
-          where: { isActive: true },
-          attributes: [
-            [sequelize.fn('SUM', sequelize.col('stock')), 'totalStock'],
-            [sequelize.fn('AVG', sequelize.col('price')), 'averagePrice']
-          ],
-          raw: true
-        }),
-        
-        // Top categories by product count
-        Category.findAll({
-          attributes: [
-            'id',
-            'name',
-            [sequelize.fn('COUNT', sequelize.col('products.id')), 'productCount']
-          ],
-          include: [{
-            model: Product,
-            as: 'products',
-            attributes: [],
-            where: { isActive: true },
-            required: false
-          }],
-          group: ['Category.id', 'Category.name'],
-          order: [[sequelize.fn('COUNT', sequelize.col('products.id')), 'DESC']],
-          limit: 5,
-          raw: true
-        })
+        sequelize.query(`
+          SELECT SUM(stock) as totalStock, AVG(price) as averagePrice
+          FROM products
+          WHERE isActive = 1
+        `, { type: QueryTypes.SELECT }).then((result: any) => result[0] || {}),
+
+        // Top categories by product count - using subquery approach
+        sequelize.query(`
+          SELECT categories.id, categories.name,
+                 (SELECT COUNT(*) FROM products WHERE products.categoryId = categories.id AND products.isActive = 1) as productCount
+          FROM categories
+          WHERE categories.isActive = 1
+          ORDER BY productCount DESC
+          LIMIT 5
+        `, { type: QueryTypes.SELECT })
       ]);
 
       // Calculate total inventory value

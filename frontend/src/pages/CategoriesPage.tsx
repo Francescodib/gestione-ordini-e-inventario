@@ -6,7 +6,6 @@ import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Table from '../components/Table';
 import Button from '../components/Button';
-import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 
 const CategoriesPage: React.FC = () => {
@@ -29,7 +28,7 @@ const CategoriesPage: React.FC = () => {
         setCategories(response.data);
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading categories:', err);
       setError('Errore nel caricamento delle categorie');
     } finally {
@@ -68,8 +67,8 @@ const CategoriesPage: React.FC = () => {
   const hierarchicalCategories = buildCategoryHierarchy(categories);
 
   // Flatten hierarchy for table display with indentation
-  const flattenHierarchy = (cats: any[], level = 0): any[] => {
-    let result: any[] = [];
+  const flattenHierarchy = (cats: (Category & { children: Category[], level?: number })[], level = 0): (Category & { children: Category[], level: number })[] => {
+    let result: (Category & { children: Category[], level: number })[] = [];
     cats.forEach(cat => {
       result.push({ ...cat, level });
       if (cat.children && cat.children.length > 0) {
@@ -85,7 +84,7 @@ const CategoriesPage: React.FC = () => {
     {
       key: 'name' as keyof Category,
       title: 'Nome Categoria',
-      render: (value: string, record: any) => (
+      render: (value: string, record: Category & { level: number; children: Category[] }) => (
         <div className="flex items-center">
           <div style={{ marginLeft: `${record.level * 24}px` }} className="flex items-center">
             {record.level > 0 && (
@@ -122,7 +121,7 @@ const CategoriesPage: React.FC = () => {
     {
       key: 'products' as keyof Category,
       title: 'Prodotti',
-      render: (products: any[] | undefined, record: any) => (
+      render: (products: Category[] | undefined, record: Category & { children: Category[] }) => (
         <div className="text-sm text-gray-900">
           {products?.length || 0}
           {record.children && record.children.length > 0 && (

@@ -1,4 +1,5 @@
 import React from 'react';
+import LineChart from './LineChart';
 
 export interface ChartDataPoint {
   label: string;
@@ -27,13 +28,7 @@ const Chart: React.FC<ChartProps> = ({
   ];
 
   const maxValue = Math.max(...data.map(d => d.value));
-  const [tooltipData, setTooltipData] = React.useState<{
-    show: boolean;
-    x: number;
-    y: number;
-    label: string;
-    value: number;
-  }>({ show: false, x: 0, y: 0, label: '', value: 0 });
+  // Tooltip functionality removed as it's handled in LineChart component
 
   const renderBarChart = () => {
     return (
@@ -81,7 +76,7 @@ const Chart: React.FC<ChartProps> = ({
         <div className="relative">
           <svg width={radius * 2 + 40} height={radius * 2 + 40}>
             {data.map((item, index) => {
-              const percentage = (item.value / total) * 100;
+              // const percentage = (item.value / total) * 100;
               const angle = (item.value / total) * 360;
               const color = item.color || colors[index % colors.length];
 
@@ -141,150 +136,14 @@ const Chart: React.FC<ChartProps> = ({
   };
 
   const renderLineChart = () => {
-    const svgRef = React.useRef<SVGSVGElement>(null);
-
-    // Fixed optimal width for 12 months (80px per month)
-    const optimalWidth = Math.max(960, data.length * 80);
-    const chartPadding = 40;
-    const chartHeight = height - 80;
-
-    // Calculate points with fixed optimal spacing
-    const points = data.map((item, index) => {
-      return {
-        index,
-        x: chartPadding + (index / (data.length - 1)) * (optimalWidth - chartPadding * 2),
-        y: 30 + (1 - item.value / (maxValue || 1)) * (chartHeight - 60),
-        ...item
-      };
-    });
-
-    const handleMouseEnter = (event: React.MouseEvent, point: typeof points[0]) => {
-      const rect = event.currentTarget.getBoundingClientRect();
-      const parentRect = svgRef.current?.getBoundingClientRect();
-      if (parentRect) {
-        setTooltipData({
-          show: true,
-          x: rect.left - parentRect.left + rect.width / 2,
-          y: rect.top - parentRect.top - 10,
-          label: point.label,
-          value: point.value
-        });
-      }
-    };
-
-    const handleMouseLeave = () => {
-      setTooltipData({ show: false, x: 0, y: 0, label: '', value: 0 });
-    };
-
     return (
-      <div className="relative w-full">
-        {/* Container with horizontal scroll */}
-        <div className="overflow-x-auto overflow-y-visible">
-          <div style={{ width: `${optimalWidth}px`, minWidth: '100%' }}>
-            <svg
-              ref={svgRef}
-              width={optimalWidth}
-              height={height}
-              className="block"
-            >
-              {/* Grid lines */}
-              {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
-                const y = 30 + ratio * (chartHeight - 60);
-                return (
-                  <line
-                    key={index}
-                    x1={chartPadding}
-                    y1={y}
-                    x2={optimalWidth - chartPadding}
-                    y2={y}
-                    stroke="#F3F4F6"
-                    strokeWidth="1"
-                  />
-                );
-              })}
-
-              {/* Line */}
-              {points.length > 1 && (
-                <polyline
-                  points={points.map(p => `${p.x},${p.y}`).join(' ')}
-                  fill="none"
-                  stroke="#3B82F6"
-                  strokeWidth="3"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-              )}
-
-              {/* Points */}
-              {points.map((point, index) => (
-                <g key={index}>
-                  <circle
-                    cx={point.x}
-                    cy={point.y}
-                    r="5"
-                    fill="#3B82F6"
-                    stroke="white"
-                    strokeWidth="2"
-                    className="cursor-pointer hover:fill-blue-700 transition-colors duration-200"
-                    onMouseEnter={(e) => handleMouseEnter(e, point)}
-                    onMouseLeave={handleMouseLeave}
-                  />
-                  {showValues && point.value > 0 && (
-                    <text
-                      x={point.x}
-                      y={point.y - 12}
-                      textAnchor="middle"
-                      className="text-xs fill-gray-600 font-medium"
-                    >
-                      {point.value.toLocaleString('it-IT')}
-                    </text>
-                  )}
-                </g>
-              ))}
-            </svg>
-
-            {/* X-axis labels */}
-            <div className="relative mt-2" style={{ height: '20px' }}>
-              {points.map((point, index) => (
-                <div
-                  key={index}
-                  className="absolute text-xs text-gray-700 text-center"
-                  style={{
-                    left: `${point.x}px`,
-                    width: '60px',
-                    transform: 'translateX(-50%)'
-                  }}
-                >
-                  {point.label}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Tooltip */}
-        {tooltipData.show && (
-          <div
-            className="absolute z-20 bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg pointer-events-none text-sm whitespace-nowrap"
-            style={{
-              left: tooltipData.x,
-              top: tooltipData.y,
-              transform: 'translate(-50%, -100%)'
-            }}
-          >
-            <div className="font-semibold">{tooltipData.label}</div>
-            <div>€{tooltipData.value.toLocaleString('it-IT', {minimumFractionDigits: 2})}</div>
-            <div
-              className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0"
-              style={{
-                borderLeft: '4px solid transparent',
-                borderRight: '4px solid transparent',
-                borderTop: '4px solid #1F2937'
-              }}
-            />
-          </div>
-        )}
-      </div>
+      <LineChart
+        data={data}
+        height={height}
+        showValues={showValues}
+        maxValue={maxValue}
+        colors={colors}
+      />
     );
   };
 

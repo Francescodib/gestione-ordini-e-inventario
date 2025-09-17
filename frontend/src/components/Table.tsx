@@ -1,30 +1,30 @@
 import React from 'react';
 
-interface Column<T> {
-  key: keyof T | string;
+interface Column {
+  key: string;
   title: string;
-  render?: (value: any, record: T) => React.ReactNode;
+  render?: (value: unknown, record: Record<string, unknown>) => React.ReactNode;
   width?: string;
   sortable?: boolean;
 }
 
-interface TableProps<T> {
-  data: T[];
-  columns: Column<T>[];
+interface TableProps {
+  data: Record<string, unknown>[];
+  columns: Column[];
   loading?: boolean;
   emptyText?: string;
-  onRowClick?: (record: T) => void;
+  onRowClick?: (record: Record<string, unknown>) => void;
   className?: string;
 }
 
-const Table = <T extends Record<string, any>>({
+const Table: React.FC<TableProps> = ({
   data,
   columns,
   loading = false,
   emptyText = 'Nessun dato disponibile',
   onRowClick,
   className = ''
-}: TableProps<T>) => {
+}) => {
   if (loading) {
     return (
       <div className="bg-[var(--color-bg-primary)] rounded-[var(--radius-md)] border border-[var(--color-border-light)] shadow-[var(--shadow-base)]">
@@ -88,13 +88,11 @@ const Table = <T extends Record<string, any>>({
                 onClick={() => onRowClick?.(record)}
               >
                 {columns.map((column, colIndex) => {
-                  const value = typeof column.key === 'string' 
-                    ? record[column.key] 
-                    : record[column.key as keyof T];
-                  
+                  const value = record[column.key];
+
                   return (
                     <td key={colIndex} className="px-6 py-4 whitespace-nowrap text-sm text-[var(--color-text-primary)]">
-                      {column.render ? column.render(value, record) : value}
+                      {column.render ? column.render(value, record) : String(value || '')}
                     </td>
                   );
                 })}

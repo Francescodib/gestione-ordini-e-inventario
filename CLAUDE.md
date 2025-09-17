@@ -187,3 +187,4 @@ The project uses a comprehensive TypeScript type system:
 - Set up log rotation and monitoring
 - Configure backup schedules appropriately
 - Ensure file upload directories have proper permissions
+- non cambiare la porta a 3001, la porta deve restare 3000, se necessario riavvio il pc, in tal caso se devi interrompere o se raggiungi il limite temporale crea un promemoria per ripartire da dove hai lasciato

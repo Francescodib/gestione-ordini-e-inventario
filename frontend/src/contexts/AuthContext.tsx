@@ -108,3 +108,6 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+
+// Default export to fix react-refresh issue
+export default AuthProvider;

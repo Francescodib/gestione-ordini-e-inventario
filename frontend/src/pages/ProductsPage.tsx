@@ -22,7 +22,7 @@ const ProductsPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [searchParams]);
+  }, [searchParams]); // loadData depends on searchParams, which is stable
 
   const loadData = async () => {
     try {
