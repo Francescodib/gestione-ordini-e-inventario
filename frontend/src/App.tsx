@@ -19,6 +19,10 @@ import UsersPage from './pages/UsersPage';
 import UserDetailPage from './pages/UserDetailPage';
 import SystemPage from './pages/SystemPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import CategoryDetailPage from './pages/CategoryDetailPage';
+import CategoryCreatePage from './pages/CategoryCreatePage';
+import CategoryEditPage from './pages/CategoryEditPage';
+
 import './App.css';
 
 function App() {
@@ -100,6 +104,30 @@ function App() {
               element={
                 <ProtectedRoute>
                   <CategoriesPage />
+                </ProtectedRoute>
+              } 
+            />
+             <Route 
+              path="/categories/:id" 
+              element={
+                <ProtectedRoute>
+                  <CategoryDetailPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/categories/new" 
+              element={
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
+                  <CategoryCreatePage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/categories/:id/edit" 
+              element={
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
+                  <CategoryEditPage />
                 </ProtectedRoute>
               } 
             />

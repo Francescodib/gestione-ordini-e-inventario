@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { categoryService } from '../services/api';
-import type { Category } from '../services/api';
+import { categoryService, productService } from '../services/api';
+import type { Category, Product } from '../services/api';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Table from '../components/Table';
@@ -10,6 +10,7 @@ import ErrorMessage from '../components/ErrorMessage';
 
 const CategoriesPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -22,10 +23,18 @@ const CategoriesPage: React.FC = () => {
       setLoading(true);
       setError('');
 
-      const response = await categoryService.getAllCategories();
+      // Load categories and products in parallel
+      const [categoriesResponse, productsResponse] = await Promise.all([
+        categoryService.getAllCategories(),
+        productService.getAllProducts()
+      ]);
 
-      if (response.success && response.data) {
-        setCategories(response.data);
+      if (categoriesResponse.success && categoriesResponse.data) {
+        setCategories(categoriesResponse.data);
+      }
+
+      if (productsResponse.success && productsResponse.data) {
+        setProducts(productsResponse.data);
       }
 
     } catch (err: unknown) {
@@ -62,6 +71,34 @@ const CategoriesPage: React.FC = () => {
     });
 
     return rootCategories;
+  };
+
+  // Function to get all child categories recursively
+  const getAllChildCategories = (parentId: string): Category[] => {
+    const children: Category[] = [];
+    
+    const findChildren = (parentId: string) => {
+      const directChildren = categories.filter(cat => cat.parentId == parentId);
+      children.push(...directChildren);
+      directChildren.forEach(child => findChildren(child.id));
+    };
+    
+    findChildren(parentId);
+    return children;
+  };
+
+  // Function to calculate product count for a category
+  const getProductCount = (category: Category): number => {
+    const children = getAllChildCategories(category.id);
+    
+    if (children.length > 0) {
+      // Parent category: count products from all child categories
+      const childCategoryIds = children.map(child => child.id);
+      return products.filter(p => childCategoryIds.includes(p.categoryId)).length;
+    } else {
+      // Child category: count products directly from this category
+      return products.filter(p => p.categoryId === category.id).length;
+    }
   };
 
   const hierarchicalCategories = buildCategoryHierarchy(categories);
@@ -121,16 +158,19 @@ const CategoriesPage: React.FC = () => {
     {
       key: 'products' as keyof Category,
       title: 'Prodotti',
-      render: (products: Category[] | undefined, record: Category & { children: Category[] }) => (
-        <div className="text-sm text-gray-900">
-          {products?.length || 0}
-          {record.children && record.children.length > 0 && (
-            <div className="text-xs text-gray-500">
-              {record.children.length} sottocategorie
-            </div>
-          )}
-        </div>
-      )
+      render: (products: Category[] | undefined, record: Category & { children: Category[] }) => {
+        const productCount = getProductCount(record);
+        return (
+          <div className="text-sm text-gray-900">
+            {productCount}
+            {record.children && record.children.length > 0 && (
+              <div className="text-xs text-gray-500">
+                {record.children.length} sottocategorie
+              </div>
+            )}
+          </div>
+        );
+      }
     },
     {
       key: 'isActive' as keyof Category,
