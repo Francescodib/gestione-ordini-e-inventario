@@ -8,6 +8,7 @@ import Table from '../components/Table';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import ErrorMessage from '../components/ErrorMessage';
+import ProductImageGallery from '../components/ProductImageGallery';
 
 const ProductsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -139,22 +140,18 @@ const ProductsPage: React.FC = () => {
       render: (value: string, record: Product) => (
         <div className="flex items-center">
           <div className="h-10 w-10 flex-shrink-0">
-            {record.images && record.images.length > 0 ? (
-              <img
-                className="h-10 w-10 rounded-lg object-cover"
-                src={record.images[0]}
-                alt={record.name}
-              />
-            ) : (
-              <div className="h-10 w-10 rounded-lg bg-gray-200 flex items-center justify-center">
-                <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-              </div>
-            )}
+            <ProductImageGallery
+              productId={record.id}
+              productName={record.name}
+              size="small"
+              className="cursor-pointer"
+              onImageSelect={() => navigate(`/products/${record.id}`)}
+            />
           </div>
           <div className="ml-4">
-            <div className="text-sm font-medium text-gray-900">{record.name}</div>
+            <div className="text-sm font-medium text-gray-900 hover:text-blue-600">
+              <Link to={`/products/${record.id}`}>{record.name}</Link>
+            </div>
             <div className="text-sm text-gray-500">SKU: {record.sku}</div>
           </div>
         </div>

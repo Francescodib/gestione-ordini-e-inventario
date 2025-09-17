@@ -8,6 +8,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import ErrorMessage from '../components/ErrorMessage';
 import ImageUpload from '../components/ImageUpload';
+import FileUpload from '../components/FileUpload';
 
 interface ProductFormData {
   name: string;
@@ -33,6 +34,8 @@ const ProductCreatePage: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [createdProductId, setCreatedProductId] = useState<string | null>(null);
   const [showImageUpload, setShowImageUpload] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePrimaryFlags, setImagePrimaryFlags] = useState<boolean[]>([]);
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -100,9 +103,26 @@ const ProductCreatePage: React.FC = () => {
       const response = await productService.createProduct(productData);
 
       if (response.success) {
-        setCreatedProductId(response.data.id);
-        setSuccess('Prodotto creato con successo! Ora puoi aggiungere delle immagini.');
-        setShowImageUpload(true);
+        const productId = response.data.id;
+        setCreatedProductId(productId);
+        
+        // Se ci sono immagini selezionate, caricale automaticamente
+        if (selectedImages.length > 0) {
+          try {
+            const { fileService } = await import('../services/api');
+            await fileService.uploadProductImages(productId, selectedImages, imagePrimaryFlags);
+            setSuccess(`Prodotto creato con successo con ${selectedImages.length} immagini!`);
+            setTimeout(() => {
+              navigate(`/products/${productId}`);
+            }, 1500);
+          } catch (imageError) {
+            setSuccess('Prodotto creato con successo! Ora puoi aggiungere delle immagini.');
+            setShowImageUpload(true);
+          }
+        } else {
+          setSuccess('Prodotto creato con successo! Ora puoi aggiungere delle immagini.');
+          setShowImageUpload(true);
+        }
       } else {
         throw new Error(response.message || 'Errore durante la creazione del prodotto');
       }
@@ -138,6 +158,31 @@ const ProductCreatePage: React.FC = () => {
 
   const handleSkipImages = () => {
     navigate('/products');
+  };
+
+  const handleImageSelection = (files: File[]) => {
+    setSelectedImages(files);
+    // Imposta automaticamente la prima immagine come principale se non ci sono altre immagini principali
+    const primaryFlags = files.map((_, index) => index === 0);
+    setImagePrimaryFlags(primaryFlags);
+  };
+
+  const handlePrimaryImageChange = (index: number) => {
+    const newFlags = selectedImages.map((_, i) => i === index);
+    setImagePrimaryFlags(newFlags);
+  };
+
+  const removeImage = (index: number) => {
+    const newImages = selectedImages.filter((_, i) => i !== index);
+    const newFlags = imagePrimaryFlags.filter((_, i) => i !== index);
+    
+    // Se rimuoviamo l'immagine principale e ci sono altre immagini, rendi principale la prima
+    if (imagePrimaryFlags[index] && newImages.length > 0) {
+      newFlags[0] = true;
+    }
+    
+    setSelectedImages(newImages);
+    setImagePrimaryFlags(newFlags);
   };
 
   return (
@@ -337,6 +382,92 @@ const ProductCreatePage: React.FC = () => {
                 placeholder="tag1, tag2, tag3 (separati da virgola)"
               />
 
+              {/* Image Upload Section */}
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Immagini Prodotto</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Aggiungi immagini del prodotto (opzionale). Le immagini verranno caricate automaticamente dopo la creazione del prodotto.
+                </p>
+                
+                <FileUpload
+                  onFileSelect={handleImageSelection}
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  multiple={true}
+                  maxFiles={5}
+                  maxSizeBytes={5 * 1024 * 1024}
+                  disabled={loading}
+                  uploadType="image"
+                  showPreview={true}
+                />
+
+                {/* Primary Image Selection */}
+                {selectedImages.length > 1 && (
+                  <div className="mt-6 space-y-3">
+                    <h4 className="text-sm font-medium text-gray-900">Seleziona Immagine Principale</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {selectedImages.map((image, index) => (
+                        <div key={index} className="relative">
+                          <div 
+                            className={`aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer border-2 transition-colors ${
+                              imagePrimaryFlags[index] ? 'border-blue-500' : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                            onClick={() => handlePrimaryImageChange(index)}
+                          >
+                            <img
+                              src={URL.createObjectURL(image)}
+                              alt={`Preview ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          
+                          {imagePrimaryFlags[index] && (
+                            <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                              Principale
+                            </div>
+                          )}
+                          
+                          <div className="absolute top-2 right-2 flex space-x-1">
+                            <input
+                              type="radio"
+                              name="primary-image"
+                              checked={imagePrimaryFlags[index]}
+                              onChange={() => handlePrimaryImageChange(index)}
+                              className="h-4 w-4 text-blue-600"
+                            />
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => removeImage(index)}
+                            className="absolute bottom-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedImages.length > 0 && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="flex items-start">
+                      <svg className="h-5 w-5 text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="ml-3">
+                        <p className="text-sm text-blue-800">
+                          <strong>{selectedImages.length}</strong> {selectedImages.length === 1 ? 'immagine selezionata' : 'immagini selezionate'}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          Le immagini verranno caricate automaticamente dopo la creazione del prodotto.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Submit Button */}
               <div className="flex justify-end space-x-4">
                 <Button
@@ -352,7 +483,12 @@ const ProductCreatePage: React.FC = () => {
                   variant="primary"
                   disabled={loading}
                 >
-                  {loading ? 'Creando...' : 'Crea Prodotto'}
+                  {loading 
+                    ? 'Creando...' 
+                    : selectedImages.length > 0 
+                      ? `Crea Prodotto con ${selectedImages.length} immagini`
+                      : 'Crea Prodotto'
+                  }
                 </Button>
               </div>
             </form>

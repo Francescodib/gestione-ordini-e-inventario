@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { productService } from '../services/api';
-import type { Product } from '../services/api';
+import type { Product, ProductImageUpload } from '../services/api';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import ErrorMessage from '../components/ErrorMessage';
+import ProductImageGallery from '../components/ProductImageGallery';
+import ImageUpload from '../components/ImageUpload';
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +17,7 @@ const ProductDetailPage: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [requestInProgress, setRequestInProgress] = useState(false);
+  const [showImageManagement, setShowImageManagement] = useState(false);
 
 
   useEffect(() => {
@@ -98,6 +101,15 @@ const ProductDetailPage: React.FC = () => {
     return texts[status as keyof typeof texts] || status;
   };
 
+  const handleImageUploadSuccess = (images: ProductImageUpload[]) => {
+    setSuccess(`${images.length} immagini caricate con successo!`);
+    // Optionally reload product data to show updated images
+  };
+
+  const handleImageUploadError = (error: string) => {
+    setError(error);
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -162,6 +174,12 @@ const ProductDetailPage: React.FC = () => {
               <p className="mt-1 text-sm text-gray-600">SKU: {product.sku}</p>
             </div>
             <div className="flex space-x-3">
+              <Button 
+                variant="secondary" 
+                onClick={() => setShowImageManagement(!showImageManagement)}
+              >
+                {showImageManagement ? 'Nascondi' : 'Gestisci'} Immagini
+              </Button>
               <Link to={`/products/${product.id}/edit`}>
                 <Button variant="secondary">
                   Modifica
@@ -248,29 +266,14 @@ const ProductDetailPage: React.FC = () => {
               {/* Images */}
               <Card>
                 <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900">Immagini</h3>
+                  <h3 className="text-lg font-medium text-gray-900">Immagini Prodotto</h3>
                 </div>
                 <div className="px-6 py-4">
-                  {product.images && product.images.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {product.images.map((image, index) => (
-                        <div key={index} className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                          <img
-                            src={image}
-                            alt={`${product.name} ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <p className="mt-2 text-sm text-gray-500">Nessuna immagine caricata</p>
-                    </div>
-                  )}
+                  <ProductImageGallery
+                    productId={product.id}
+                    productName={product.name}
+                    size="large"
+                  />
                 </div>
               </Card>
             </div>
@@ -363,6 +366,27 @@ const ProductDetailPage: React.FC = () => {
               </Card>
             </div>
           </div>
+
+          {/* Image Management Section */}
+          {showImageManagement && (
+            <Card>
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Gestione Immagini</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Carica, rimuovi e gestisci le immagini del prodotto. L'immagine principale verrà mostrata per prima.
+                </p>
+              </div>
+              <div className="px-6 py-4">
+                <ImageUpload
+                  productId={product.id}
+                  type="product"
+                  onUploadSuccess={handleImageUploadSuccess}
+                  onUploadError={handleImageUploadError}
+                  maxImages={8}
+                />
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </Layout>
