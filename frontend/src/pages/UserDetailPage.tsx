@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { authService } from '../services/api';
 import type { User } from '../services/api';
+import type { AvatarUpload as AvatarUploadType } from '../services/api';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Input from '../components/Input';
 import ErrorMessage from '../components/ErrorMessage';
+import AvatarUpload from '../components/AvatarUpload';
 import { useAuth } from '../contexts/AuthContext';
 
 const UserDetailPage: React.FC = () => {
@@ -275,6 +277,18 @@ const UserDetailPage: React.FC = () => {
     }
   };
 
+  const handleAvatarUploadSuccess = (avatar: AvatarUploadType) => {
+    setSuccess('Avatar caricato con successo!');
+  };
+
+  const handleAvatarUploadError = (error: string) => {
+    setError(error);
+  };
+
+  const handleAvatarDeleteSuccess = () => {
+    setSuccess('Avatar rimosso con successo!');
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -332,22 +346,29 @@ const UserDetailPage: React.FC = () => {
         {/* User Profile Card */}
         <Card>
           <div className="px-4 py-5 sm:p-6">
-            <div className="flex items-center">
-              <div className="h-20 w-20 flex-shrink-0">
-                <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center">
-                  <span className="text-2xl font-medium text-gray-700">
-                    {(user.firstName || user.username).charAt(0)}{(user.lastName || '').charAt(0) || (user.username || 'U').charAt(1)}
-                  </span>
-                </div>
+            <div className="flex items-start space-x-6">
+              {/* Avatar Upload */}
+              <div className="flex-shrink-0">
+                <AvatarUpload
+                  userId={user.id}
+                  size="xl"
+                  onUploadSuccess={handleAvatarUploadSuccess}
+                  onUploadError={handleAvatarUploadError}
+                  onDeleteSuccess={handleAvatarDeleteSuccess}
+                  showUploadButton={true}
+                  allowDelete={true}
+                />
               </div>
-              <div className="ml-6">
+              
+              {/* User Info */}
+              <div className="flex-1 min-w-0">
                 <h3 className="text-xl font-semibold text-gray-900">
                   {user.firstName && user.lastName
                     ? `${user.firstName} ${user.lastName}`
                     : user.username}
                 </h3>
                 <p className="text-sm text-gray-500">@{user.username}</p>
-                <div className="mt-2 flex items-center space-x-3">
+                <div className="mt-3 flex items-center flex-wrap gap-3">
                   <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getRoleBadge(user.role)}`}>
                     {getRoleText(user.role)}
                   </span>

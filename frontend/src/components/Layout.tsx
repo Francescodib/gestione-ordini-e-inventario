@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import UserAvatar from './UserAvatar';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -69,11 +70,6 @@ const BellIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const UserCircleIcon = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
 
 const Bars3Icon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -171,7 +167,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <UserCircleIcon className="h-8 w-8 text-gray-400" />
+                {user && (
+                  <UserAvatar 
+                    userId={user.id}
+                    username={user.username}
+                    firstName={user.firstName}
+                    lastName={user.lastName}
+                    size="md"
+                  />
+                )}
               </div>
               <div className="ml-3">
                 <p className="text-base font-medium text-gray-700">
@@ -219,7 +223,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
             <div className="flex items-center w-full group">
               <div className="flex-shrink-0">
-                <UserCircleIcon className="h-8 w-8 text-gray-400" />
+                {user && (
+                  <UserAvatar 
+                    userId={user.id}
+                    username={user.username}
+                    firstName={user.firstName}
+                    lastName={user.lastName}
+                    size="md"
+                  />
+                )}
               </div>
               <div className="ml-3 flex-1">
                 <p className="text-sm font-medium text-gray-700 truncate">
@@ -285,7 +297,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
                 {/* User info - mobile */}
                 <div className="md:hidden">
-                  <UserCircleIcon className="h-8 w-8 text-gray-400" />
+                  {user && (
+                    <UserAvatar 
+                      userId={user.id}
+                      username={user.username}
+                      firstName={user.firstName}
+                      lastName={user.lastName}
+                      size="md"
+                    />
+                  )}
                 </div>
               </div>
             </div>

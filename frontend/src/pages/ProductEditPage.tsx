@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { productService, categoryService } from '../services/api';
-import type { Category } from '../services/api';
+import type { Category, ProductImageUpload } from '../services/api';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import ErrorMessage from '../components/ErrorMessage';
+import ImageUpload from '../components/ImageUpload';
 
 interface ProductFormData {
   name: string;
@@ -152,6 +153,14 @@ const ProductEditPage: React.FC = () => {
     }));
   };
 
+  const handleImageUploadSuccess = (images: ProductImageUpload[]) => {
+    setSuccess(`${images.length} immagini caricate con successo!`);
+  };
+
+  const handleImageUploadError = (error: string) => {
+    setError(error);
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -221,7 +230,7 @@ const ProductEditPage: React.FC = () => {
             </div>
           )}
 
-          {/* Form */}
+          {/* Product Form */}
           <Card>
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Basic Info */}
@@ -397,6 +406,26 @@ const ProductEditPage: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </Card>
+
+          {/* Image Management */}
+          <Card>
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Gestione Immagini</h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  Gestisci le immagini del prodotto. Puoi aggiungere nuove immagini, rimuovere quelle esistenti o impostare l'immagine principale.
+                </p>
+              </div>
+
+              <ImageUpload
+                productId={id}
+                type="product"
+                onUploadSuccess={handleImageUploadSuccess}
+                onUploadError={handleImageUploadError}
+                maxImages={5}
+              />
+            </div>
           </Card>
         </div>
       </div>

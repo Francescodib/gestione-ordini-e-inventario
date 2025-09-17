@@ -423,14 +423,81 @@ export const backupService = {
   }
 };
 
+// File upload types
+export interface ProductImageUpload {
+  id: string;
+  productId: string;
+  filename: string;
+  originalName: string;
+  paths: {
+    thumbnail: string;
+    medium: string;
+    large: string;
+    original: string;
+  };
+  urls: {
+    thumbnail: string;
+    medium: string;
+    large: string;
+    original: string;
+  };
+  isPrimary: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface AvatarUpload {
+  id: string;
+  userId: string;
+  filename: string;
+  originalName: string;
+  paths: {
+    small: string;
+    medium: string;
+    large: string;
+  };
+  urls: {
+    small: string;
+    medium: string;
+    large: string;
+  };
+  createdAt: string;
+}
+
+export interface UploadedFile {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimetype: string;
+  size: number;
+  path: string;
+  url: string;
+  type: string;
+  entityId?: string;
+  entityType?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // File upload service
 export const fileService = {
-  async uploadFile(file: File, type: 'product' | 'avatar' | 'document'): Promise<ApiResponse<{fileId: string, url: string, thumbnails?: string[]}>> {
+  // Product Images
+  async uploadProductImages(
+    productId: string, 
+    files: File[], 
+    primaryFlags: boolean[] = []
+  ): Promise<ApiResponse<ProductImageUpload[]>> {
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', type);
     
-    const response = await api.post('/files/upload', formData, {
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+    
+    if (primaryFlags.length > 0) {
+      formData.append('isPrimary', JSON.stringify(primaryFlags));
+    }
+    
+    const response = await api.post(`/files/products/${productId}/images`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -438,9 +505,117 @@ export const fileService = {
     return response.data;
   },
 
-  async deleteFile(fileId: string): Promise<ApiResponse<void>> {
-    const response = await api.delete(`/files/${fileId}`);
+  async getProductImages(productId: string): Promise<ApiResponse<ProductImageUpload[]>> {
+    const response = await api.get(`/files/products/${productId}/images`);
     return response.data;
+  },
+
+  async deleteProductImage(imageId: string): Promise<ApiResponse<void>> {
+    const response = await api.delete(`/files/products/images/${imageId}`);
+    return response.data;
+  },
+
+  async setPrimaryProductImage(imageId: string): Promise<ApiResponse<void>> {
+    const response = await api.put(`/files/products/images/${imageId}/primary`);
+    return response.data;
+  },
+
+  // User Avatars
+  async uploadAvatar(userId: string, file: File): Promise<ApiResponse<AvatarUpload>> {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    
+    const response = await api.post(`/files/users/${userId}/avatar`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  async getUserAvatar(userId: string): Promise<ApiResponse<AvatarUpload | null>> {
+    const response = await api.get(`/files/users/${userId}/avatar`);
+    return response.data;
+  },
+
+  async deleteUserAvatar(userId: string): Promise<ApiResponse<void>> {
+    const response = await api.delete(`/files/users/${userId}/avatar`);
+    return response.data;
+  },
+
+  // Documents
+  async uploadDocuments(
+    files: File[], 
+    entityId?: string, 
+    entityType?: string, 
+    description?: string
+  ): Promise<ApiResponse<UploadedFile[]>> {
+    const formData = new FormData();
+    
+    files.forEach(file => {
+      formData.append('documents', file);
+    });
+    
+    if (entityId) formData.append('entityId', entityId);
+    if (entityType) formData.append('entityType', entityType);
+    if (description) formData.append('description', description);
+    
+    const response = await api.post('/files/documents', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  async getDocuments(entityId: string, entityType: string): Promise<ApiResponse<UploadedFile[]>> {
+    const response = await api.get('/files/documents', {
+      params: { entityId, entityType }
+    });
+    return response.data;
+  },
+
+  async deleteDocument(fileId: string): Promise<ApiResponse<void>> {
+    const response = await api.delete(`/files/documents/${fileId}`);
+    return response.data;
+  },
+
+  // File Management (Admin only)
+  async getFileStats(): Promise<ApiResponse<{
+    totalFiles: number;
+    totalSize: number;
+    filesByType: Record<string, number>;
+    recentUploads: number;
+    config: {
+      maxFileSizes: Record<string, number>;
+      allowedTypes: Record<string, string[]>;
+      uploadDirectories: Record<string, string>;
+    };
+  }>> {
+    const response = await api.get('/files/stats');
+    return response.data;
+  },
+
+  async cleanupOrphanedFiles(): Promise<ApiResponse<{ deletedCount: number }>> {
+    const response = await api.post('/files/cleanup');
+    return response.data;
+  },
+
+  async checkFileSystemHealth(): Promise<ApiResponse<{
+    directories: Record<string, boolean>;
+    config: {
+      maxFileSizes: Record<string, number>;
+      allowedTypes: Record<string, string[]>;
+    };
+  }>> {
+    const response = await api.get('/files/health');
+    return response.data;
+  },
+
+  // Static file URL builder
+  getFileUrl(path: string): string {
+    const baseUrl = API_BASE_URL.replace('/api', '');
+    return `${baseUrl}/api/files/uploads/${path}`;
   }
 };
 

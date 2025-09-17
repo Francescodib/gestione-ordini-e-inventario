@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { productService, categoryService } from '../services/api';
-import type { Category } from '../services/api';
+import type { Category, ProductImageUpload } from '../services/api';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import ErrorMessage from '../components/ErrorMessage';
+import ImageUpload from '../components/ImageUpload';
 
 interface ProductFormData {
   name: string;
@@ -30,6 +31,8 @@ const ProductCreatePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+  const [showImageUpload, setShowImageUpload] = useState(false);
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -97,10 +100,9 @@ const ProductCreatePage: React.FC = () => {
       const response = await productService.createProduct(productData);
 
       if (response.success) {
-        setSuccess('Prodotto creato con successo!');
-        setTimeout(() => {
-          navigate('/products');
-        }, 1500);
+        setCreatedProductId(response.data.id);
+        setSuccess('Prodotto creato con successo! Ora puoi aggiungere delle immagini.');
+        setShowImageUpload(true);
       } else {
         throw new Error(response.message || 'Errore durante la creazione del prodotto');
       }
@@ -116,6 +118,26 @@ const ProductCreatePage: React.FC = () => {
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleImageUploadSuccess = (images: ProductImageUpload[]) => {
+    setSuccess(`${images.length} immagini caricate con successo!`);
+  };
+
+  const handleImageUploadError = (error: string) => {
+    setError(error);
+  };
+
+  const handleFinishAndViewProduct = () => {
+    if (createdProductId) {
+      navigate(`/products/${createdProductId}`);
+    } else {
+      navigate('/products');
+    }
+  };
+
+  const handleSkipImages = () => {
+    navigate('/products');
   };
 
   return (
@@ -157,9 +179,10 @@ const ProductCreatePage: React.FC = () => {
             </div>
           )}
 
-          {/* Form */}
-          <Card>
-            <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Product Form */}
+          {!showImageUpload && (
+            <Card>
+              <form onSubmit={handleSubmit} className="space-y-6">
               {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input
@@ -334,6 +357,44 @@ const ProductCreatePage: React.FC = () => {
               </div>
             </form>
           </Card>
+          )}
+
+          {/* Image Upload Step */}
+          {showImageUpload && createdProductId && (
+            <Card>
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Aggiungi Immagini Prodotto</h2>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Carica delle immagini per il prodotto appena creato. Puoi saltare questo passaggio e aggiungere le immagini in seguito.
+                  </p>
+                </div>
+
+                <ImageUpload
+                  productId={createdProductId}
+                  type="product"
+                  onUploadSuccess={handleImageUploadSuccess}
+                  onUploadError={handleImageUploadError}
+                  maxImages={5}
+                />
+
+                <div className="flex justify-end space-x-4 pt-6 border-t">
+                  <Button
+                    variant="secondary"
+                    onClick={handleSkipImages}
+                  >
+                    Salta questo passaggio
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleFinishAndViewProduct}
+                  >
+                    Completa e Visualizza Prodotto
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </Layout>
