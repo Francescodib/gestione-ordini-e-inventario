@@ -60,12 +60,21 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
   const handleFileSelect = useCallback((files: File[]) => {
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
-    const newImages = imageFiles.map((file, index) => ({
-      file,
-      isPrimary: selectedImages.length === 0 && index === 0 && images.length === 0
-    }));
+    const newImages = imageFiles.map((file, index) => {
+      // Check if this is the first image overall (no existing selected images and no existing uploaded images)
+      const isFirstImageOverall = selectedImages.length === 0 && index === 0 && images.length === 0;
+      // Check if this is the first image in this selection and no primary is already set
+      const hasPrimarySelected = selectedImages.some(img => img.isPrimary);
+      const shouldBePrimary = isFirstImageOverall || (!hasPrimarySelected && index === 0);
+
+      return {
+        file,
+        isPrimary: shouldBePrimary
+      };
+    });
+
     setSelectedImages(newImages);
-  }, [selectedImages.length, images.length]);
+  }, [selectedImages, images.length]);
 
   const setPrimaryImage = useCallback((index: number) => {
     setSelectedImages(prev => 

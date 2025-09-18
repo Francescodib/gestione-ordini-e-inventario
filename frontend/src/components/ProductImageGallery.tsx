@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fileService } from '../services/api';
 import type { ProductImageUpload } from '../services/api';
 import LoadingSpinner from './LoadingSpinner';
+import { ImageIcon, Eye, X } from 'lucide-react';
 
 interface ProductImageGalleryProps {
   productId: string;
@@ -87,6 +88,16 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
   };
 
   if (loading) {
+    // Compact loading for small size (used in lists)
+    if (size === 'small') {
+      return (
+        <div className={`${sizeClasses[size]} bg-gray-100 rounded-md border border-gray-200 flex items-center justify-center ${className}`}>
+          <LoadingSpinner />
+        </div>
+      );
+    }
+
+    // Full loading for medium and large sizes
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
         <LoadingSpinner />
@@ -95,11 +106,19 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
   }
 
   if (error || images.length === 0) {
+    // Compact placeholder for small size (used in lists)
+    if (size === 'small') {
+      return (
+        <div className={`${sizeClasses[size]} bg-gray-100 rounded-md border border-gray-200 flex items-center justify-center ${className}`}>
+          <ImageIcon className="h-8 w-8 text-gray-400" />
+        </div>
+      );
+    }
+
+    // Full placeholder for medium and large sizes
     return (
       <div className={`text-center py-8 ${className}`}>
-        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
+        <ImageIcon className="mx-auto h-12 w-12 text-gray-400" />
         <p className="mt-2 text-sm text-gray-500">
           {error ? 'Errore nel caricamento delle immagini' : 'Nessuna immagine disponibile'}
         </p>
@@ -137,32 +156,29 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
       <div className={`grid ${gridClasses[size]} ${className}`}>
         {images.map((image) => (
           <div key={image.id} className="relative group">
-            <div className={`${sizeClasses[size]} bg-gray-100 rounded-lg overflow-hidden`}>
+            <div className={`${sizeClasses[size]} rounded-lg overflow-hidden cursor-pointer border border-gray-200 relative`} onClick={() => handleImageClick(image)}>
               <img
-                src={getImageUrl(image, size === 'large' ? 'large' : 'medium')}
+                src={getImageUrl(image, 'medium')}
                 alt={`${productName} - ${image.originalName}`}
-                className="w-full h-full object-cover cursor-pointer group-hover:opacity-80 transition-opacity"
-                onClick={() => handleImageClick(image)}
+                className="w-full h-full object-cover transition-opacity"
                 onError={(e) => {
                   e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQgMTZMOC41ODYgMTEuNDE0QzkuMzY3IDEwLjYzMyAxMC42MzMgMTAuNjMzIDExLjQxNCAxMS40MTRMMTYgMTZNMTQgMTRMMTUuNTg2IDEyLjQxNEMxNi4zNjcgMTEuNjMzIDE3LjYzMyAxMS42MzMgMTguNDE0IDEyLjQxNEwyMCAxNE0xOCA4SDEzTTYgMjBIMThDMTkuMTA0NiAyMCAyMCAxOS4xMDQ2IDIwIDE4VjZDMjAgNC44OTU0MyAxOS4xMDQ2IDQgMTggNEg2QzQuODk1NDMgNCA0IDQuODk1NDMgNCA2VjE4QzQgMTkuMTA0NiA0Ljg5NTQzIDIwIDYgMjBaIiBzdHJva2U9IiNEMUQ1REIiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo=';
                 }}
               />
+
+              {/* Hover overlay - now inside the image container */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 flex items-center justify-center pointer-events-none">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Eye className="h-8 w-8 text-white" />
+                </div>
+              </div>
             </div>
-            
+
             {image.isPrimary && (
               <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
                 Principale
               </div>
             )}
-            
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center">
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              </div>
-            </div>
           </div>
         ))}
       </div>
@@ -173,11 +189,9 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
           <div className="relative max-w-4xl max-h-screen">
             <button
               onClick={closeModal}
-              className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+              className="absolute top-4 right-4 text-white hover:text-gray-300 z-10 bg-black bg-opacity-50 rounded-full p-2 transition-colors hover:bg-opacity-70"
             >
-              <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="h-6 w-6" />
             </button>
             
             <img

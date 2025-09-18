@@ -91,7 +91,7 @@ const Table: React.FC<TableProps> = ({
                   const value = record[column.key];
 
                   return (
-                    <td key={colIndex} className="px-6 py-4 whitespace-nowrap text-sm text-[var(--color-text-primary)]">
+                    <td key={colIndex} className="px-6 py-4 text-sm text-[var(--color-text-primary)] align-top">
                       {column.render ? column.render(value, record) : String(value || '')}
                     </td>
                   );

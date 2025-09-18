@@ -18,7 +18,9 @@
       "Bash(taskkill:*)",
       "Bash(cmd /c:*)",
       "Bash(wmic process where \"name='node.exe'\" get processid,commandline:*)",
-      "Bash(wmic process where:*)"
+      "Bash(wmic process where:*)",
+      "Bash(find:*)",
+      "Bash(dir uploads)"
     ],
     "deny": [],
     "ask": []

@@ -10,6 +10,9 @@ import { verifyToken } from '../middleware/auth';
 import { logger, logUtils } from '../config/logger';
 import {
   validateId,
+  validateUserId,
+  validateProductId,
+  validateImageId,
   sanitizeInput,
   handleValidationErrors
 } from '../middleware/validation';
@@ -46,6 +49,7 @@ router.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), {
  */
 router.post('/products/:productId/images',
   verifyToken,
+  validateProductId(),
   uploadMiddlewares.productImages,
   async (req: Request, res: Response) => {
     try {
@@ -112,6 +116,7 @@ router.post('/products/:productId/images',
  * Get product images
  */
 router.get('/products/:productId/images',
+  validateProductId(),
   async (req: Request, res: Response) => {
     try {
       const { productId } = req.params;
@@ -144,7 +149,7 @@ router.get('/products/:productId/images',
  */
 router.delete('/products/images/:imageId',
   verifyToken,
-  validateId(),
+  validateImageId(),
   async (req: Request, res: Response) => {
     try {
       // Check permissions
@@ -192,7 +197,7 @@ router.delete('/products/images/:imageId',
  */
 router.put('/products/images/:imageId/primary',
   verifyToken,
-  validateId(),
+  validateImageId(),
   async (req: Request, res: Response) => {
     try {
       // Check permissions
@@ -244,7 +249,7 @@ router.put('/products/images/:imageId/primary',
  */
 router.post('/users/:userId/avatar',
   verifyToken,
-  validateId(),
+  validateUserId(),
   uploadMiddlewares.avatar,
   async (req: Request, res: Response) => {
     try {
@@ -307,7 +312,7 @@ router.post('/users/:userId/avatar',
  * Get user avatar
  */
 router.get('/users/:userId/avatar',
-  validateId(),
+  validateUserId(),
   async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
@@ -347,7 +352,7 @@ router.get('/users/:userId/avatar',
  */
 router.delete('/users/:userId/avatar',
   verifyToken,
-  validateId(),
+  validateUserId(),
   async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;

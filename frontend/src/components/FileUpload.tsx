@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import Button from './Button';
+import { Upload, X } from 'lucide-react';
 
 interface FileUploadProps {
   onFileSelect: (files: File[]) => void;
@@ -66,17 +67,26 @@ const FileUpload: React.FC<FileUploadProps> = ({
       return;
     }
 
-    if (multiple && files.length > maxFiles) {
-      setError(`Maximum ${maxFiles} files allowed.`);
+    // Check total files (existing + new) for multiple uploads
+    if (multiple && (selectedFiles.length + files.length) > maxFiles) {
+      setError(`Maximum ${maxFiles} files allowed. You have ${selectedFiles.length} files selected and tried to add ${files.length} more.`);
       return;
     }
 
     setError('');
     const validFiles: FileWithPreview[] = [];
-    
+
+    // Check for duplicate filenames
+    const existingNames = selectedFiles.map(f => f.file.name);
+
     for (const file of files) {
+      // Skip if file already exists
+      if (existingNames.includes(file.name)) {
+        continue;
+      }
+
       const validationError = validateFile(file);
-      
+
       if (validationError) {
         setError(validationError);
         return;
@@ -96,9 +106,17 @@ const FileUpload: React.FC<FileUploadProps> = ({
       validFiles.push(fileWithPreview);
     }
 
-    setSelectedFiles(validFiles);
-    onFileSelect(validFiles.map(f => f.file));
-  }, [multiple, maxFiles, validateFile, showPreview, onFileSelect]);
+    if (!multiple) {
+      // For single file uploads, replace completely
+      setSelectedFiles(validFiles);
+      onFileSelect(validFiles.map(f => f.file));
+    } else {
+      // For multiple file uploads, append to existing files
+      const newSelectedFiles = [...selectedFiles, ...validFiles];
+      setSelectedFiles(newSelectedFiles);
+      onFileSelect(newSelectedFiles.map(f => f.file));
+    }
+  }, [multiple, maxFiles, validateFile, showPreview, onFileSelect, selectedFiles]);
 
   const createImagePreview = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -213,19 +231,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
           {children || (
             <>
               <div className="mx-auto flex justify-center">
-                <svg
-                  className="h-12 w-12 text-gray-400"
-                  stroke="currentColor"
-                  fill="none"
-                  viewBox="0 0 48 48"
-                >
-                  <path
-                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <Upload className="h-12 w-12 text-gray-400" />
               </div>
               <div className="mt-4">
                 <p className="text-lg font-medium text-gray-900">
@@ -298,9 +304,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
                   onClick={() => removeFile(index)}
                   className="flex-shrink-0"
                 >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
             ))}

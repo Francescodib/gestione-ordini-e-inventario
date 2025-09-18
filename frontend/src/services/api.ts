@@ -615,7 +615,9 @@ export const fileService = {
   // Static file URL builder
   getFileUrl(path: string): string {
     const baseUrl = API_BASE_URL.replace('/api', '');
-    return `${baseUrl}/api/files/uploads/${path}`;
+    // Normalize Windows path separators to web URL format
+    const normalizedPath = path.replace(/\\/g, '/');
+    return `${baseUrl}/api/files/uploads/${normalizedPath}`;
   }
 };
 

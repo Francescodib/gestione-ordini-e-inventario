@@ -148,10 +148,76 @@ export const idSchema = Joi.object({
 });
 
 /**
+ * Schema for validating userId parameters
+ */
+export const userIdSchema = Joi.object({
+  userId: Joi.number()
+    .integer()
+    .positive()
+    .required()
+    .messages({
+      'number.integer': 'User ID must be a valid integer',
+      'number.positive': 'User ID must be positive',
+      'any.required': 'User ID is required'
+    })
+});
+
+/**
+ * Schema for validating productId parameters
+ */
+export const productIdSchema = Joi.object({
+  productId: Joi.number()
+    .integer()
+    .positive()
+    .required()
+    .messages({
+      'number.integer': 'Product ID must be a valid integer',
+      'number.positive': 'Product ID must be positive',
+      'any.required': 'Product ID is required'
+    })
+});
+
+/**
+ * Schema for validating imageId parameters
+ */
+export const imageIdSchema = Joi.object({
+  imageId: Joi.number()
+    .integer()
+    .positive()
+    .required()
+    .messages({
+      'number.integer': 'Image ID must be a valid integer',
+      'number.positive': 'Image ID must be positive',
+      'any.required': 'Image ID is required'
+    })
+});
+
+/**
  * Middleware for validating ID parameters
  */
 export function validateId() {
   return validateParams(idSchema);
+}
+
+/**
+ * Middleware for validating userId parameters
+ */
+export function validateUserId() {
+  return validateParams(userIdSchema);
+}
+
+/**
+ * Middleware for validating productId parameters
+ */
+export function validateProductId() {
+  return validateParams(productIdSchema);
+}
+
+/**
+ * Middleware for validating imageId parameters
+ */
+export function validateImageId() {
+  return validateParams(imageIdSchema);
 }
 
 /**

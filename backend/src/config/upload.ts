@@ -116,6 +116,12 @@ export class FileUploadUtil {
     options: { width: number; height: number; quality: number; }
   ): Promise<void> {
     try {
+      logger.debug('Starting image processing', {
+        bufferSize: inputBuffer.length,
+        outputPath,
+        options
+      });
+
       await sharp(inputBuffer)
         .resize(options.width, options.height, {
           fit: 'inside',
@@ -123,7 +129,7 @@ export class FileUploadUtil {
         })
         .jpeg({ quality: options.quality })
         .toFile(outputPath);
-      
+
       logger.debug('Image processed successfully', {
         outputPath,
         width: options.width,
@@ -133,6 +139,8 @@ export class FileUploadUtil {
     } catch (error: any) {
       logger.error('Image processing failed', {
         error: error.message,
+        stack: error.stack,
+        bufferSize: inputBuffer?.length || 0,
         outputPath,
         options
       });
@@ -154,12 +162,23 @@ export class FileUploadUtil {
     original: string;
   }> {
     try {
+      logger.info('Starting product image processing', {
+        productId,
+        filename,
+        bufferSize: imageBuffer.length
+      });
+
       const baseDir = UPLOAD_CONFIG.directories.products;
-      const productDir = path.join(baseDir, productId);
-      
+      const productDir = path.join(baseDir, String(productId));
+
+      logger.debug('Product directory setup', {
+        baseDir,
+        productDir
+      });
+
       // Ensure product directory exists
       await fs.mkdir(productDir, { recursive: true });
-      
+
       const baseName = path.parse(filename).name;
       const paths = {
         thumbnail: path.join(productDir, `${baseName}_thumb.jpg`),
@@ -167,15 +186,20 @@ export class FileUploadUtil {
         large: path.join(productDir, `${baseName}_large.jpg`),
         original: path.join(productDir, `${baseName}_original.jpg`)
       };
-      
+
+      logger.debug('Processing paths created', { paths });
+
       // Process images in parallel
+      logger.debug('Starting parallel image processing');
       await Promise.all([
         this.processImage(imageBuffer, paths.thumbnail, UPLOAD_CONFIG.imageProcessing.product.thumbnail),
         this.processImage(imageBuffer, paths.medium, UPLOAD_CONFIG.imageProcessing.product.medium),
         this.processImage(imageBuffer, paths.large, UPLOAD_CONFIG.imageProcessing.product.large),
         fs.writeFile(paths.original, imageBuffer)
       ]);
-      
+
+      logger.debug('Parallel processing completed');
+
       // Return relative paths for database storage
       const relativePaths = {
         thumbnail: path.relative('uploads', paths.thumbnail),
@@ -183,18 +207,20 @@ export class FileUploadUtil {
         large: path.relative('uploads', paths.large),
         original: path.relative('uploads', paths.original)
       };
-      
+
       logger.info('Product images processed successfully', {
         productId,
         paths: relativePaths
       });
-      
+
       return relativePaths;
     } catch (error: any) {
       logger.error('Product image processing failed', {
         error: error.message,
+        stack: error.stack,
         productId,
-        filename
+        filename,
+        bufferSize: imageBuffer?.length || 0
       });
       throw error;
     }
@@ -214,7 +240,7 @@ export class FileUploadUtil {
   }> {
     try {
       const baseDir = UPLOAD_CONFIG.directories.avatars;
-      const userDir = path.join(baseDir, userId);
+      const userDir = path.join(baseDir, String(userId));
       
       // Ensure user directory exists
       await fs.mkdir(userDir, { recursive: true });

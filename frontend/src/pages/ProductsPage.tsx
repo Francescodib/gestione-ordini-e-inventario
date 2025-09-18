@@ -21,6 +21,7 @@ const ProductsPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoryId') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [showFilters, setShowFilters] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -36,6 +37,10 @@ const ProductsPage: React.FC = () => {
       const statusValue = searchParams.get('status');
       const pageParam = searchParams.get('page');
       const limitParam = searchParams.get('limit');
+
+      // Determine if this is a search operation
+      const isSearchOperation = !!(searchValue || categoryValue || statusValue);
+      setHasSearched(isSearchOperation);
 
       let categoryId: number | undefined;
       if (categoryValue) {
@@ -108,6 +113,7 @@ const ProductsPage: React.FC = () => {
     setSearchQuery('');
     setSelectedCategory('');
     setStatusFilter('');
+    setHasSearched(false);
     setSearchParams({});
   };
 
@@ -138,21 +144,30 @@ const ProductsPage: React.FC = () => {
       key: 'name' as keyof Product,
       title: 'Prodotto',
       render: (value: string, record: Product) => (
-        <div className="flex items-center">
-          <div className="h-10 w-10 flex-shrink-0">
+        <div className="flex items-center py-2">
+          <div className="h-16 w-16 flex-shrink-0">
             <ProductImageGallery
               productId={record.id}
               productName={record.name}
               size="small"
-              className="cursor-pointer"
+              className="cursor-pointer rounded-lg overflow-hidden"
               onImageSelect={() => navigate(`/products/${record.id}`)}
             />
           </div>
-          <div className="ml-4">
-            <div className="text-sm font-medium text-gray-900 hover:text-blue-600">
-              <Link to={`/products/${record.id}`}>{record.name}</Link>
+          <div className="ml-4 min-w-0 flex-1">
+            <div className="text-sm font-medium text-gray-900 hover:text-blue-600 truncate">
+              <Link to={`/products/${record.id}`} title={record.name}>
+                {record.name}
+              </Link>
             </div>
-            <div className="text-sm text-gray-500">SKU: {record.sku}</div>
+            <div className="text-sm text-gray-500 truncate" title={`SKU: ${record.sku}`}>
+              SKU: {record.sku}
+            </div>
+            {record.description && (
+              <div className="text-xs text-gray-400 truncate mt-1" title={record.description}>
+                {record.description}
+              </div>
+            )}
           </div>
         </div>
       )
@@ -160,27 +175,54 @@ const ProductsPage: React.FC = () => {
     {
       key: 'category' as keyof Product,
       title: 'Categoria',
-      render: (category: Category) => category?.name || 'N/A'
+      render: (category: Category) => (
+        <div className="text-sm">
+          <div className="font-medium text-gray-900 truncate" title={category?.name || 'N/A'}>
+            {category?.name || 'N/A'}
+          </div>
+          {category?.description && (
+            <div className="text-xs text-gray-500 truncate" title={category.description}>
+              {category.description}
+            </div>
+          )}
+        </div>
+      )
     },
     {
       key: 'price' as keyof Product,
       title: 'Prezzo',
-      render: (value: number) => `€${value.toFixed(2)}`
+      render: (value: number, record: Product) => (
+        <div className="text-right">
+          <div className="text-sm font-medium text-gray-900">
+            €{value.toFixed(2)}
+          </div>
+          {record.costPrice && (
+            <div className="text-xs text-gray-500">
+              Costo: €{record.costPrice.toFixed(2)}
+            </div>
+          )}
+        </div>
+      )
     },
     {
       key: 'stock' as keyof Product,
       title: 'Scorta',
       render: (value: number, record: Product) => (
-        <div className="flex items-center">
-          <span className={`${
-            value <= (record.minStock || 0) ? 'text-red-600 font-semibold' : 'text-gray-900'
+        <div className="text-center">
+          <div className={`text-sm font-medium ${
+            value <= (record.minStock || 0) ? 'text-red-600' : 'text-gray-900'
           }`}>
             {value}
-          </span>
+          </div>
+          <div className="text-xs text-gray-500">
+            Min: {record.minStock || 0}
+          </div>
           {value <= (record.minStock || 0) && (
-            <svg className="ml-1 h-4 w-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.664-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
+            <div className="flex justify-center mt-1">
+              <svg className="h-4 w-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.664-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
           )}
         </div>
       )
@@ -196,8 +238,18 @@ const ProductsPage: React.FC = () => {
     },
     {
       key: 'updatedAt' as keyof Product,
-      title: 'Ultimo Aggiornamento',
-      render: (value: string) => new Date(value).toLocaleDateString('it-IT')
+      title: 'Aggiornato',
+      render: (value: string) => (
+        <div className="text-sm text-gray-900">
+          <div>{new Date(value).toLocaleDateString('it-IT')}</div>
+          <div className="text-xs text-gray-500">
+            {new Date(value).toLocaleTimeString('it-IT', {
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </div>
+        </div>
+      )
     }
   ];
 
@@ -319,11 +371,19 @@ const ProductsPage: React.FC = () => {
         </Card>
 
         {/* Results Summary */}
-        {!loading && (
+        {!loading && hasSearched && (
           <div className="text-sm text-gray-600">
             Trovati {products.length} prodotti
             {searchQuery && ` per "${searchQuery}"`}
             {selectedCategory && ` nella categoria selezionata`}
+            {statusFilter && ` con stato "${getStatusText(statusFilter)}"`}
+          </div>
+        )}
+
+        {/* Default State Message */}
+        {!loading && !hasSearched && (
+          <div className="text-sm text-gray-600">
+            Visualizzazione di tutti i prodotti disponibili
           </div>
         )}
 

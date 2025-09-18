@@ -27,5 +27,6 @@ export const rateLimitMiddleware: RateLimitRequestHandler = rateLimit({
 
 export const helmetConfig: HelmetOptions = {
   contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
 };
 
