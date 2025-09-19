@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import UserAvatar from './UserAvatar';
+import NotificationCenter from './NotificationCenter';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -61,12 +62,6 @@ const Cog8ToothIcon = ({ className }: { className?: string }) => (
 const MagnifyingGlassIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-  </svg>
-);
-
-const BellIcon = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
   </svg>
 );
 
@@ -291,14 +286,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
               <div className="flex items-center space-x-4">
                 {/* Notifications */}
-                <button className="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                  <BellIcon className="h-6 w-6" />
-                </button>
+                <NotificationCenter token={localStorage.getItem('token') || undefined} />
 
                 {/* User info - mobile */}
                 <div className="md:hidden">
                   {user && (
-                    <UserAvatar 
+                    <UserAvatar
+                      userId={user.id}
+                      username={user.username}
+                      firstName={user.firstName}
+                      lastName={user.lastName}
+                      size="md"
+                    />
+                  )}
+                </div>
+
+                {/* User info - desktop */}
+                <div className="hidden md:flex md:items-center md:space-x-4">
+                  {user && (
+                    <UserAvatar
                       userId={user.id}
                       username={user.username}
                       firstName={user.firstName}

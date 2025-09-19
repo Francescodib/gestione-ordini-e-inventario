@@ -6,6 +6,7 @@
 import { Product, ProductStatus, Category, OrderItem } from '../models';
 import { sequelize } from '../config/database';
 import { logger, logUtils } from '../config/logger';
+import { getNotificationService } from './notificationService';
 import { Op, WhereOptions, QueryTypes } from 'sequelize';
 
 /**
@@ -533,7 +534,7 @@ export class ProductService {
         });
       }
 
-      // Log low stock warning
+      // Log low stock warning and send notification
       if (newStock <= product.minStock && newStock > 0) {
         logger.warn('Low stock detected', {
           productId: id,
@@ -541,6 +542,16 @@ export class ProductService {
           currentStock: newStock,
           minStock: product.minStock
         });
+
+        // Send real-time notification for low inventory
+        const notificationService = getNotificationService();
+        if (notificationService) {
+          notificationService.notifyLowInventory(
+            product.name,
+            newStock,
+            product.minStock
+          );
+        }
       }
 
       return updatedProduct!;

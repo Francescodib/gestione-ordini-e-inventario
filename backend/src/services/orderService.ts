@@ -7,6 +7,7 @@ import { Order, OrderItem, OrderStatus, PaymentStatus, User, Product, Category }
 import { sequelize } from '../config/database';
 import { logger, logUtils } from '../config/logger';
 import { ProductService } from './productService';
+import { getNotificationService } from './notificationService';
 import { Op, Transaction, WhereOptions, FindOptions, Includeable } from 'sequelize';
 // Note: Order types are defined inline in this service for now
 // Future migration: move to ../types/order.ts
@@ -294,6 +295,17 @@ export class OrderService {
         totalAmount: order!.totalAmount,
         duration
       });
+
+      // Send real-time notification for new order
+      const notificationService = getNotificationService();
+      if (notificationService && order!.user) {
+        const customerName = `${order!.user.firstName} ${order!.user.lastName}`;
+        notificationService.notifyNewOrder(
+          order!.id,
+          customerName,
+          order!.totalAmount
+        );
+      }
 
       return order as OrderWithDetails;
     } catch (error: any) {
@@ -693,6 +705,19 @@ export class OrderService {
         changes: Object.keys(updateData),
         duration
       });
+
+      // Send real-time notification for status changes
+      if (updateData.status && updateData.status !== existingOrder.status) {
+        const notificationService = getNotificationService();
+        if (notificationService) {
+          notificationService.notifyOrderStatusChange(
+            order!.id,
+            existingOrder.status,
+            updateData.status,
+            order!.userId
+          );
+        }
+      }
 
       return order as OrderWithDetails;
     } catch (error: any) {

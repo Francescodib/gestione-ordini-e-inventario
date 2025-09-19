@@ -60,7 +60,7 @@ import { AlertService } from "./services/alertService";
 import { MonitoringScheduler } from "./services/monitoringScheduler";
 
 // WebSocket Notifications
-import { initializeNotificationService } from "./services/notificationService";
+import { initializeNotificationService, getNotificationService } from "./services/notificationService";
 
 // Sequelize models are imported from our models directory
 
@@ -382,6 +382,17 @@ const startServer = async () => {
             logger.info('Backup scheduler shutdown completed');
           } catch (error: any) {
             logger.error('Error shutting down backup scheduler', { error: error.message });
+          }
+
+          // Shutdown notification service
+          try {
+            const notificationService = getNotificationService();
+            if (notificationService) {
+              notificationService.shutdown();
+              logger.info('Notification service shutdown completed');
+            }
+          } catch (error: any) {
+            logger.error('Error shutting down notification service', { error: error.message });
           }
           
           // Chiudi connessione database Sequelize
