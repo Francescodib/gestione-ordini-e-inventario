@@ -120,7 +120,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <div className={`fixed inset-0 flex z-40 md:hidden ${
         sidebarOpen ? '' : 'pointer-events-none'
       }`}>
-        <div className={`fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity ease-linear duration-300 ${
+        <div className={`fixed inset-0 bg-gray-900/75 backdrop-blur-sm transition-opacity ease-linear duration-300 ${
           sidebarOpen ? 'opacity-100' : 'opacity-0'
         }`} onClick={() => setSidebarOpen(false)} />
 

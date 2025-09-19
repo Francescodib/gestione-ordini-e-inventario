@@ -56,7 +56,7 @@ const UserDetailPage: React.FC = () => {
         setError('Utente non trovato');
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading user:', err);
       setError('Errore nel caricamento dei dettagli utente');
     } finally {
@@ -98,40 +98,42 @@ const UserDetailPage: React.FC = () => {
   if (error || !user) {
     return (
       <Layout>
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">Dettagli Utente</h1>
-            <Button variant="secondary" onClick={() => navigate('/users')}>
-              Torna alla Lista
-            </Button>
-          </div>
-          <ErrorMessage message={error || 'Utente non trovato'} onDismiss={() => setError('')} />
-          {success && (
-            <div className="bg-green-50 border border-green-200 rounded-md p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-green-700">{success}</p>
-                </div>
-                <div className="ml-auto pl-3">
-                  <div className="-mx-1.5 -my-1.5">
-                    <button
-                      onClick={() => setSuccess('')}
-                      className="inline-flex bg-green-50 rounded-md p-1.5 text-green-500 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-green-50 focus:ring-green-600"
-                    >
-                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold text-gray-900">Dettagli Utente</h1>
+              <Button variant="secondary" onClick={() => navigate('/users')}>
+                Torna alla Lista
+              </Button>
+            </div>
+            <ErrorMessage message={error || 'Utente non trovato'} onDismiss={() => setError('')} />
+            {success && (
+              <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-green-700">{success}</p>
+                  </div>
+                  <div className="ml-auto pl-3">
+                    <div className="-mx-1.5 -my-1.5">
+                      <button
+                        onClick={() => setSuccess('')}
+                        className="inline-flex bg-green-50 rounded-md p-1.5 text-green-500 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-green-50 focus:ring-green-600"
+                      >
+                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </Layout>
     );
@@ -173,7 +175,7 @@ const UserDetailPage: React.FC = () => {
       } else {
         setError('Errore nell\'aggiornamento dell\'utente');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating user:', err);
       setError('Errore nell\'aggiornamento dell\'utente');
     } finally {
@@ -196,7 +198,7 @@ const UserDetailPage: React.FC = () => {
       } else {
         setError('Errore nel cambio stato utente');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error toggling user status:', err);
       setError('Errore nel cambio stato utente');
     } finally {
@@ -220,7 +222,7 @@ const UserDetailPage: React.FC = () => {
       } else {
         setError('Errore nell\'aggiornamento del ruolo');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating user role:', err);
       setError('Errore nell\'aggiornamento del ruolo');
     } finally {
@@ -242,7 +244,7 @@ const UserDetailPage: React.FC = () => {
       } else {
         setError('Errore nell\'invio dell\'email di reset');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error sending password reset:', err);
       setError('Errore nell\'invio dell\'email di reset');
     } finally {
@@ -269,7 +271,7 @@ const UserDetailPage: React.FC = () => {
       } else {
         setError('Errore nell\'eliminazione dell\'utente');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error deleting user:', err);
       setError('Errore nell\'eliminazione dell\'utente');
     } finally {
@@ -277,7 +279,7 @@ const UserDetailPage: React.FC = () => {
     }
   };
 
-  const handleAvatarUploadSuccess = (avatar: AvatarUploadType) => {
+  const handleAvatarUploadSuccess = () => {
     setSuccess('Avatar caricato con successo!');
   };
 
@@ -291,9 +293,10 @@ const UserDetailPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Dettagli Utente</h1>
             <p className="mt-2 text-sm text-gray-700">
@@ -357,6 +360,11 @@ const UserDetailPage: React.FC = () => {
                   onDeleteSuccess={handleAvatarDeleteSuccess}
                   showUploadButton={true}
                   allowDelete={true}
+                  user={{
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    username: user.username
+                  }}
                 />
               </div>
               
@@ -411,12 +419,6 @@ const UserDetailPage: React.FC = () => {
                     )}
                   </div>
                 </div>
-                {user.phone && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Telefono</label>
-                    <p className="mt-1 text-sm text-gray-900">{user.phone}</p>
-                  </div>
-                )}
               </div>
             </div>
           </Card>
@@ -507,7 +509,7 @@ const UserDetailPage: React.FC = () => {
 
         {/* Edit User Modal */}
         {showEditModal && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-4">
@@ -563,7 +565,7 @@ const UserDetailPage: React.FC = () => {
 
         {/* Change Role Modal */}
         {showRoleModal && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-4">
@@ -610,6 +612,7 @@ const UserDetailPage: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
     </Layout>
   );

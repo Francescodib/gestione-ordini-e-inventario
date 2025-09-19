@@ -185,11 +185,11 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
 
       {/* Modal for full-size image view */}
       {showModal && selectedImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="relative max-w-4xl max-h-screen">
             <button
               onClick={closeModal}
-              className="absolute top-4 right-4 text-white hover:text-gray-300 z-10 bg-black bg-opacity-50 rounded-full p-2 transition-colors hover:bg-opacity-70"
+              className="absolute top-4 right-4 text-white hover:text-gray-300 z-10 bg-gray-900/50 backdrop-blur-sm rounded-full p-2 transition-colors hover:bg-opacity-70"
             >
               <X className="h-6 w-6" />
             </button>
@@ -203,7 +203,7 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
               }}
             />
             
-            <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white p-3 rounded">
+            <div className="absolute bottom-4 left-4 bg-gray-900/50 backdrop-blur-sm text-white p-3 rounded">
               <p className="text-sm font-medium">{productName}</p>
               <p className="text-xs text-gray-300">{selectedImage.originalName}</p>
               {selectedImage.isPrimary && (

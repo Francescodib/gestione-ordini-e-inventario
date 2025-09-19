@@ -190,7 +190,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                     </div>
                   )}
                   
-                  <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center space-x-2">
+                  <div className="absolute inset-0 bg-gray-900/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center space-x-2">
                     {!image.isPrimary && (
                       <Button
                         size="sm"

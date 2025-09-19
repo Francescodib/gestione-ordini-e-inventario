@@ -15,6 +15,11 @@ interface AvatarUploadProps {
   className?: string;
   showUploadButton?: boolean;
   allowDelete?: boolean;
+  user?: {
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+  };
 }
 
 const AvatarUpload: React.FC<AvatarUploadProps> = ({
@@ -26,7 +31,8 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
   size = 'lg',
   className = '',
   showUploadButton = true,
-  allowDelete = true
+  allowDelete = true,
+  user
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -124,14 +130,40 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
     }
   };
 
-  const getAvatarUrl = (size: 'small' | 'medium' | 'large' = 'large') => {
-    if (avatar?.urls?.[size]) {
-      return fileService.getFileUrl(avatar.paths[size]);
+  const getAvatarUrl = () => {
+    if (avatar?.paths) {
+      // Map component size to avatar URL size
+      const sizeMap = {
+        'sm': 'small',
+        'md': 'medium', 
+        'lg': 'large',
+        'xl': 'large'
+      } as const;
+      
+      const avatarSize = sizeMap[size] || 'large';
+      
+      if (avatar.paths[avatarSize]) {
+        return fileService.getFileUrl(avatar.paths[avatarSize]);
+      } else {
+        // Try to use any available size as fallback
+        const availableSizes = Object.keys(avatar.paths).filter(key => avatar.paths[key]);
+        if (availableSizes.length > 0) {
+          const fallbackSize = availableSizes[0];
+          return fileService.getFileUrl(avatar.paths[fallbackSize]);
+        }
+      }
     }
     return currentAvatarUrl;
   };
 
   const getInitials = () => {
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase();
+    } else if (user?.firstName) {
+      return user.firstName.charAt(0).toUpperCase();
+    } else if (user?.username) {
+      return user.username.charAt(0).toUpperCase();
+    }
     return '?';
   };
 
@@ -153,20 +185,32 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
       {/* Avatar Display */}
       <div className="flex items-center space-x-4">
         <div className={`${sizeClasses[size]} relative`}>
-          {previewUrl || getAvatarUrl() ? (
-            <img
-              src={previewUrl || getAvatarUrl()}
-              alt="Avatar"
-              className="w-full h-full object-cover rounded-full border-2 border-gray-200"
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 rounded-full border-2 border-gray-200 flex items-center justify-center text-white font-semibold text-lg">
-              {getInitials()}
-            </div>
-          )}
+          {(() => {
+            const avatarUrl = previewUrl || getAvatarUrl();
+            
+            if (avatarUrl && avatarUrl.trim() !== '') {
+              return (
+                <img
+                  src={avatarUrl}
+                  alt="Avatar"
+                  className="w-full h-full object-cover rounded-full border-2 border-gray-200"
+                  onError={(e) => {
+                    console.error('Failed to load avatar image:', avatarUrl);
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              );
+            } else {
+              return (
+                <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 rounded-full border-2 border-gray-200 flex items-center justify-center text-white font-semibold text-lg">
+                  {getInitials()}
+                </div>
+              );
+            }
+          })()}
           
           {selectedFile && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+            <div className="absolute inset-0 bg-gray-900/50 rounded-full flex items-center justify-center">
               <span className="text-white text-xs font-medium">Preview</span>
             </div>
           )}
