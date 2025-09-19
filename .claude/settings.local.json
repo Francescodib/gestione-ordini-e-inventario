@@ -20,7 +20,13 @@
       "Bash(wmic process where \"name='node.exe'\" get processid,commandline:*)",
       "Bash(wmic process where:*)",
       "Bash(find:*)",
-      "Bash(dir uploads)"
+      "Bash(dir uploads)",
+      "Bash(rm:*)",
+      "Read(//private/tmp/**)",
+      "Bash(python3:*)",
+      "Bash(pkill:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)"
     ],
     "deny": [],
     "ask": []

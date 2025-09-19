@@ -73,23 +73,19 @@ const DashboardPage: React.FC = () => {
 
       if (productStatsResponse.status === 'fulfilled' && productStatsResponse.value.success) {
         const productStats = productStatsResponse.value.data;
-        console.log('Product stats:', productStats);
         dashboardStats.totalProducts = productStats.totalProducts || 0;
         dashboardStats.lowStockProducts = productStats.lowStockProducts || 0;
         dashboardStats.topProducts = productStats.topCategories || [];
       } else {
-        console.error('Product stats failed:', productStatsResponse);
       }
 
       if (orderStatsResponse.status === 'fulfilled' && orderStatsResponse.value.success) {
         const orderStats = orderStatsResponse.value.data;
-        console.log('Order stats:', orderStats);
         dashboardStats.totalOrders = orderStats.totalOrders || 0;
         dashboardStats.pendingOrders = orderStats.pendingOrders || 0;
         dashboardStats.monthlyRevenue = orderStats.totalRevenue || 0;
         dashboardStats.recentOrders = orderStats.recent || [];
       } else {
-        console.error('Order stats failed:', orderStatsResponse);
       }
 
       if (userStatsResponse.status === 'fulfilled' && userStatsResponse.value.success) {
@@ -114,7 +110,6 @@ const DashboardPage: React.FC = () => {
       }
 
     } catch (err: any) {
-      console.error('Dashboard loading error:', err);
       setError('Errore nel caricamento della dashboard');
     } finally {
       setLoading(false);

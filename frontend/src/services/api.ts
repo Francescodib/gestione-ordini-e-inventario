@@ -445,8 +445,70 @@ export const backupService = {
 
   async createBackup(): Promise<ApiResponse<any>> {
     // Create both database and files backup
-    const response = await api.post('/backup/database');
-    return response.data;
+    try {
+      const [dbResponse, filesResponse] = await Promise.allSettled([
+        api.post('/backup/database'),
+        api.post('/backup/files')
+      ]);
+
+      const dbResult = dbResponse.status === 'fulfilled' ? dbResponse.value.data : null;
+      const filesResult = filesResponse.status === 'fulfilled' ? filesResponse.value.data : null;
+
+      // If both succeeded
+      if (dbResponse.status === 'fulfilled' && filesResponse.status === 'fulfilled') {
+        return {
+          success: true,
+          message: 'Backup database e file completato con successo',
+          data: {
+            database: dbResult.data,
+            files: filesResult.data,
+            combined: true
+          }
+        };
+      }
+
+      // If only database succeeded
+      if (dbResponse.status === 'fulfilled' && filesResponse.status === 'rejected') {
+        return {
+          success: true,
+          message: 'Backup database completato, errore nel backup file',
+          data: {
+            database: dbResult.data,
+            files: null,
+            combined: false,
+            error: filesResponse.reason?.response?.data?.message || 'Errore sconosciuto'
+          }
+        };
+      }
+
+      // If only files succeeded
+      if (dbResponse.status === 'rejected' && filesResponse.status === 'fulfilled') {
+        return {
+          success: false,
+          message: 'Errore nel backup database, backup file completato',
+          error: dbResponse.reason?.response?.data?.message || 'Errore sconosciuto',
+          data: {
+            database: null,
+            files: filesResult.data,
+            combined: false
+          }
+        };
+      }
+
+      // If both failed
+      return {
+        success: false,
+        message: 'Errore in entrambi i backup',
+        error: `Database: ${dbResponse.reason?.response?.data?.message || 'Errore sconosciuto'}, Files: ${filesResponse.reason?.response?.data?.message || 'Errore sconosciuto'}`
+      };
+
+    } catch (error: any) {
+      return {
+        success: false,
+        message: 'Errore durante l\'esecuzione dei backup',
+        error: error.message
+      };
+    }
   },
 
   async getBackupList(type?: 'database' | 'files'): Promise<ApiResponse<any[]>> {
@@ -500,6 +562,11 @@ export const backupService = {
 
   async getJobs(): Promise<ApiResponse<any[]>> {
     const response = await api.get('/backup/jobs');
+    return response.data;
+  },
+
+  async cleanupOrphanedFiles(): Promise<ApiResponse<any>> {
+    const response = await api.post('/files/cleanup');
     return response.data;
   }
 };

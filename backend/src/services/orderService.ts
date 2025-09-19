@@ -50,6 +50,14 @@ export interface CreateOrderRequest {
   currency?: string;
 }
 
+export interface UpdateOrderItemRequest {
+  id?: number;
+  productId: number;
+  quantity: number;
+  price?: number;
+  totalPrice?: number;
+}
+
 export interface UpdateOrderRequest {
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
@@ -58,6 +66,9 @@ export interface UpdateOrderRequest {
   notes?: string;
   shippingAddress?: any;
   billingAddress?: any;
+  subtotal?: number;
+  totalAmount?: number;
+  items?: UpdateOrderItemRequest[];
 }
 
 export interface OrderWithDetails extends Order {
@@ -583,8 +594,50 @@ export class OrderService {
         await this.restoreOrderStock(existingOrder, adminUserId);
       }
 
-      // Prepare update data
-      const updatePayload = {
+      // Handle items update if provided
+      if (updateData.items) {
+        // Get existing items
+        const existingItems = await OrderItem.findAll({
+          where: { orderId: id },
+          transaction
+        });
+
+        // Update or create items
+        for (const itemData of updateData.items) {
+          if (itemData.id) {
+            // Update existing item
+            await OrderItem.update({
+              quantity: itemData.quantity,
+              unitPrice: itemData.price,
+              totalPrice: itemData.totalPrice || (itemData.price! * itemData.quantity)
+            }, {
+              where: { id: itemData.id, orderId: id },
+              transaction
+            });
+          } else {
+            // Create new item
+            await OrderItem.create({
+              orderId: id,
+              productId: itemData.productId,
+              quantity: itemData.quantity,
+              unitPrice: itemData.price || 0,
+              totalPrice: itemData.totalPrice || (itemData.price! * itemData.quantity),
+              sku: `SKU-${itemData.productId}` // Simplified SKU generation
+            }, { transaction });
+          }
+        }
+
+        // Remove items that are no longer in the update
+        const updatedItemIds = updateData.items.filter(item => item.id).map(item => item.id!);
+        const itemsToDelete = existingItems.filter(item => !updatedItemIds.includes(item.id));
+
+        for (const itemToDelete of itemsToDelete) {
+          await itemToDelete.destroy({ transaction });
+        }
+      }
+
+      // Prepare update data (exclude items as they're handled separately)
+      const { items, ...updatePayload } = {
         ...updateData,
         updatedAt: new Date(),
       };
@@ -647,8 +700,17 @@ export class OrderService {
       logUtils.logDbOperation('UPDATE', 'orders', undefined, error);
       logger.error('Order update failed', {
         error: error.message,
+        errorStack: error.stack,
+        errorName: error.name,
         orderId: id,
-        adminUserId
+        adminUserId,
+        updateData: JSON.stringify(updateData, null, 2)
+      });
+      console.error('DETAILED ORDER UPDATE ERROR:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        updateData
       });
       throw error;
     }
@@ -702,6 +764,11 @@ export class OrderService {
    * Validate order status transitions
    */
   private static validateStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus): void {
+    // Allow no-op transitions (same status)
+    if (currentStatus === newStatus) {
+      return;
+    }
+
     const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
       [OrderStatus.PENDING]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
       [OrderStatus.PROCESSING]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],

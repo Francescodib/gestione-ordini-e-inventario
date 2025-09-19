@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { backupService } from '../services/api';
+import { databaseService } from '../services/database';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 import {
@@ -91,9 +92,27 @@ const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
       if (response.success) {
         setSuccess(`Backup ${selectedBackupLocal.type} ripristinato con successo`);
         setShowConfirm(false);
-        setTimeout(() => {
-          onClose();
-        }, 2000);
+
+        // Se è un ripristino database e il backend indica che serve un refresh
+        if (selectedBackupLocal.type === 'database' && response.requiresRefresh) {
+          setSuccess('Database ripristinato con successo. La pagina si aggiornerà automaticamente...');
+
+          // Forzare un controllo di salute del database
+          databaseService.forceHealthCheck().then(() => {
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          }).catch(() => {
+            // Se il controllo fallisce, ricarica comunque dopo un po'
+            setTimeout(() => {
+              window.location.reload();
+            }, 3000);
+          });
+        } else {
+          setTimeout(() => {
+            onClose();
+          }, 2000);
+        }
       } else {
         setError(`Errore nel ripristino del backup: ${response.error || 'Errore sconosciuto'}`);
       }

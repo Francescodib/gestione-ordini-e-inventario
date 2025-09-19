@@ -17,6 +17,7 @@ import {
 } from '../middleware/validation';
 import {
   createOrderSchema,
+  updateOrderSchema,
   updateOrderStatusSchema,
   paginationSchema
 } from '../validation/schemas';
@@ -503,12 +504,7 @@ router.put('/:id',
   validateId(),
   sanitizeInput(),
   validateContentType(),
-  validateBody(Joi.object({
-    shippingAddress: Joi.object().optional(),
-    billingAddress: Joi.object().optional(),
-    notes: Joi.string().max(1000).optional(),
-    trackingNumber: Joi.string().max(100).optional()
-  })),
+  validateBody(updateOrderSchema),
   async (req: Request, res: Response) => {
     try {
       // Check if user has permission to update orders

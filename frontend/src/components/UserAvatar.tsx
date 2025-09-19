@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { fileService } from '../services/api';
 import type { AvatarUpload } from '../services/api';
 
+// Simple cache to prevent duplicate API calls for the same user
+const avatarCache = new Map<string, { data: AvatarUpload | null; loading: boolean; error: boolean }>();
+
 interface UserAvatarProps {
   userId: string;
   username?: string;
@@ -44,15 +47,34 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
   }, [userId]);
 
   const loadAvatar = async () => {
+    // Check cache first
+    const cached = avatarCache.get(userId);
+    if (cached) {
+      setAvatar(cached.data);
+      setLoading(cached.loading);
+      setError(cached.error);
+      if (!cached.loading) return; // Use cached data if not currently loading
+    }
+
+    // Set loading state in cache
+    avatarCache.set(userId, { data: null, loading: true, error: false });
+
     try {
       setLoading(true);
       setError(false);
       const response = await fileService.getUserAvatar(userId);
       if (response.success && response.data) {
         setAvatar(response.data);
+        // Cache successful result
+        avatarCache.set(userId, { data: response.data, loading: false, error: false });
+      } else {
+        // Cache null result
+        avatarCache.set(userId, { data: null, loading: false, error: false });
       }
     } catch (err) {
       setError(true);
+      // Cache error state
+      avatarCache.set(userId, { data: null, loading: false, error: true });
     } finally {
       setLoading(false);
     }

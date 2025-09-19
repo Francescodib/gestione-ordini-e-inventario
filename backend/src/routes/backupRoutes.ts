@@ -369,7 +369,8 @@ router.post('/restore/database',
         
         res.json({
           success: true,
-          message: 'Database restored successfully'
+          message: 'Database restored successfully. The page will refresh automatically to reflect changes.',
+          requiresRefresh: true
         });
       } else {
         res.status(500).json({
@@ -701,8 +702,35 @@ router.get('/stats',
           count: dbStats.count + fileStats.count,
           totalSize: formatBackupSize(dbStats.totalSize + fileStats.totalSize)
         },
-        jobs: backupScheduler.getAllJobsStatus(),
-        configuration: backupConfig
+        jobs: backupScheduler.getAllJobsStatus().map(job => ({
+          name: job.name,
+          status: job.status,
+          lastRun: job.lastRun,
+          nextRun: job.nextRun,
+          active: job.active,
+          schedule: job.schedule
+        })),
+        configuration: {
+          database: {
+            enabled: backupConfig.database.enabled,
+            compression: backupConfig.database.compression,
+            retention: backupConfig.database.retention
+          },
+          files: {
+            enabled: backupConfig.files.enabled,
+            compression: backupConfig.files.compression,
+            retention: backupConfig.files.retention
+          },
+          storage: {
+            local: {
+              enabled: backupConfig.storage.local.enabled,
+              path: backupConfig.storage.local.path
+            }
+          },
+          notifications: {
+            enabled: backupConfig.notifications.enabled
+          }
+        }
       };
       
       res.json({

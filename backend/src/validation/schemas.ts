@@ -572,6 +572,81 @@ export const createOrderSchema = Joi.object({
 });
 
 /**
+ * Schema for complete order update
+ */
+export const updateOrderSchema = Joi.object({
+  status: Joi.string()
+    .valid(...Object.values(OrderStatus))
+    .optional()
+    .messages({
+      'any.only': `Status must be one of: ${Object.values(OrderStatus).join(', ')}`
+    }),
+
+  paymentStatus: Joi.string()
+    .valid(...Object.values(PaymentStatus))
+    .optional()
+    .messages({
+      'any.only': `Payment status must be one of: ${Object.values(PaymentStatus).join(', ')}`
+    }),
+
+  trackingNumber: Joi.string()
+    .trim()
+    .max(100)
+    .optional()
+    .allow('', null)
+    .messages({
+      'string.max': 'Tracking number cannot exceed 100 characters'
+    }),
+
+  notes: Joi.string()
+    .trim()
+    .max(1000)
+    .optional()
+    .allow('', null)
+    .messages({
+      'string.max': 'Notes cannot exceed 1000 characters'
+    }),
+
+  subtotal: Joi.number()
+    .min(0)
+    .precision(2)
+    .optional()
+    .messages({
+      'number.min': 'Subtotal must be greater than or equal to 0'
+    }),
+
+  totalAmount: Joi.number()
+    .min(0)
+    .precision(2)
+    .optional()
+    .messages({
+      'number.min': 'Total amount must be greater than or equal to 0'
+    }),
+
+  items: Joi.array()
+    .items(orderItemSchema.keys({
+      id: Joi.number().optional() // Allow existing item IDs
+    }))
+    .min(1)
+    .max(50)
+    .optional()
+    .messages({
+      'array.min': 'Order must contain at least one item',
+      'array.max': 'Order cannot contain more than 50 items'
+    }),
+
+  shippingAddress: Joi.alternatives().try(
+    shippingAddressSchema,
+    Joi.string().max(2000) // Allow JSON string
+  ).optional(),
+
+  billingAddress: Joi.alternatives().try(
+    shippingAddressSchema,
+    Joi.string().max(2000) // Allow JSON string
+  ).optional()
+});
+
+/**
  * Schema for order status update
  */
 export const updateOrderStatusSchema = Joi.object({

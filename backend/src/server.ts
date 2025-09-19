@@ -4,6 +4,7 @@
  */
 
 import express, { Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
@@ -58,6 +59,9 @@ import { SystemMonitoringService } from "./services/systemMonitoringService";
 import { AlertService } from "./services/alertService";
 import { MonitoringScheduler } from "./services/monitoringScheduler";
 
+// WebSocket Notifications
+import { initializeNotificationService } from "./services/notificationService";
+
 // Sequelize models are imported from our models directory
 
 // Caricamento delle variabili d'ambiente dal file .env
@@ -65,6 +69,9 @@ dotenv.config();
 
 // Inizializzazione dell'applicazione Express
 const app = express();
+
+// Create HTTP server for Socket.io
+const server = createServer(app);
 
 // Configurazione della porta del server
 const PORT = process.env.PORT || 3000;
@@ -330,22 +337,31 @@ const startServer = async () => {
     } catch (error: any) {
       logger.error('Failed to initialize backup scheduler', { error: error.message });
     }
+
+    // Initialize WebSocket notification service
+    try {
+      const notificationService = initializeNotificationService(server);
+      logger.info('WebSocket notification service initialized successfully');
+    } catch (error: any) {
+      logger.error('Failed to initialize notification service', { error: error.message });
+    }
     
-    // Avvia il server HTTP
-    const server = app.listen(PORT, () => {
+    // Avvia il server HTTP con Socket.io
+    const httpServer = server.listen(PORT, () => {
       logger.info(`Server running on http://localhost:${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`Health check available at: http://localhost:${PORT}/health`);
       logger.info(`Backup system available at: http://localhost:${PORT}/api/backup`);
       logger.info(`Monitoring dashboard at: http://localhost:${PORT}/api/monitoring`);
       logger.info(`Prometheus metrics at: http://localhost:${PORT}/api/monitoring/metrics`);
+      logger.info(`WebSocket notifications available at: ws://localhost:${PORT}`);
     });
 
     // Gestione graceful shutdown
     const gracefulShutdown = (signal: string) => {
       logger.warn(`Received ${signal}. Shutting down gracefully...`);
       
-      server.close(async () => {
+      httpServer.close(async () => {
         logger.info('HTTP server closed');
         
         try {

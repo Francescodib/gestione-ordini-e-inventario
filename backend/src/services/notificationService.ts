@@ -1,0 +1,410 @@
+/**
+ * Real-time Notification Service
+ * Manages WebSocket connections and real-time notifications for order status changes
+ */
+
+import { Server as SocketIOServer, Socket } from 'socket.io';
+import { Server as HTTPServer } from 'http';
+import jwt from 'jsonwebtoken';
+import { logger } from '../config/logger';
+import { User } from '../models';
+
+export interface NotificationPayload {
+  type: 'ORDER_STATUS_CHANGE' | 'ORDER_CREATED' | 'INVENTORY_LOW' | 'SYSTEM_ALERT';
+  title: string;
+  message: string;
+  data?: any;
+  userId?: number;
+  userRole?: 'USER' | 'MANAGER' | 'ADMIN';
+  timestamp: Date;
+  orderId?: number;
+}
+
+export interface AuthenticatedSocket extends Socket {
+  user?: {
+    id: number;
+    email: string;
+    role: 'USER' | 'MANAGER' | 'ADMIN';
+  };
+}
+
+export class NotificationService {
+  private io: SocketIOServer;
+  private connectedUsers = new Map<number, AuthenticatedSocket[]>(); // userId -> sockets
+
+  constructor(server: HTTPServer) {
+    this.io = new SocketIOServer(server, {
+      cors: {
+        origin: process.env.FRONTEND_URL || "http://localhost:5173",
+        methods: ["GET", "POST"],
+        credentials: true
+      },
+      transports: ['websocket', 'polling']
+    });
+
+    this.setupEventHandlers();
+    logger.info('NotificationService initialized');
+  }
+
+  private setupEventHandlers(): void {
+    this.io.use(this.authenticateSocket.bind(this));
+
+    this.io.on('connection', (socket: AuthenticatedSocket) => {
+      this.handleConnection(socket);
+
+      socket.on('disconnect', () => {
+        this.handleDisconnection(socket);
+      });
+
+      socket.on('join_room', (room: string) => {
+        this.handleJoinRoom(socket, room);
+      });
+
+      socket.on('leave_room', (room: string) => {
+        this.handleLeaveRoom(socket, room);
+      });
+
+      socket.on('mark_notification_read', (notificationId: string) => {
+        this.handleMarkNotificationRead(socket, notificationId);
+      });
+    });
+  }
+
+  private async authenticateSocket(socket: AuthenticatedSocket, next: (err?: Error) => void): Promise<void> {
+    try {
+      const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
+
+      if (!token) {
+        return next(new Error('Authentication token required'));
+      }
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+
+      // Verify user still exists and is active
+      const user = await User.findByPk(decoded.userId);
+      if (!user || !user.isActive) {
+        return next(new Error('User not found or inactive'));
+      }
+
+      socket.user = {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      };
+
+      next();
+    } catch (error: any) {
+      logger.warn('Socket authentication failed', { error: error.message });
+      next(new Error('Authentication failed'));
+    }
+  }
+
+  private handleConnection(socket: AuthenticatedSocket): void {
+    if (!socket.user) return;
+
+    const userId = socket.user.id;
+
+    // Add socket to user's connections
+    if (!this.connectedUsers.has(userId)) {
+      this.connectedUsers.set(userId, []);
+    }
+    this.connectedUsers.get(userId)!.push(socket);
+
+    // Join user-specific room
+    socket.join(`user:${userId}`);
+
+    // Join role-specific rooms
+    socket.join(`role:${socket.user.role}`);
+
+    // Join general notifications room
+    socket.join('general');
+
+    logger.info('Socket connected', {
+      socketId: socket.id,
+      userId: socket.user.id,
+      userEmail: socket.user.email,
+      role: socket.user.role,
+      totalConnections: this.connectedUsers.get(userId)?.length || 0
+    });
+
+    // Send welcome message
+    socket.emit('notification', {
+      type: 'SYSTEM_ALERT',
+      title: 'Connesso',
+      message: 'Notifiche in tempo reale attivate',
+      timestamp: new Date()
+    });
+
+    // Send current connection count to admins
+    this.notifyAdmins({
+      type: 'SYSTEM_ALERT',
+      title: 'Nuovo Utente Connesso',
+      message: `${socket.user.email} si è connesso alle notifiche`,
+      timestamp: new Date(),
+      data: {
+        totalConnectedUsers: this.connectedUsers.size,
+        totalActiveSockets: Array.from(this.connectedUsers.values()).flat().length
+      }
+    });
+  }
+
+  private handleDisconnection(socket: AuthenticatedSocket): void {
+    if (!socket.user) return;
+
+    const userId = socket.user.id;
+    const userSockets = this.connectedUsers.get(userId);
+
+    if (userSockets) {
+      const index = userSockets.indexOf(socket);
+      if (index > -1) {
+        userSockets.splice(index, 1);
+      }
+
+      // Remove user entry if no more sockets
+      if (userSockets.length === 0) {
+        this.connectedUsers.delete(userId);
+      }
+    }
+
+    logger.info('Socket disconnected', {
+      socketId: socket.id,
+      userId: socket.user.id,
+      remainingConnections: userSockets?.length || 0
+    });
+  }
+
+  private handleJoinRoom(socket: AuthenticatedSocket, room: string): void {
+    if (!socket.user) return;
+
+    // Validate room access based on user role
+    if (!this.canJoinRoom(socket.user, room)) {
+      socket.emit('error', { message: 'Insufficient permissions to join room' });
+      return;
+    }
+
+    socket.join(room);
+    logger.debug('Socket joined room', {
+      socketId: socket.id,
+      userId: socket.user.id,
+      room
+    });
+  }
+
+  private handleLeaveRoom(socket: AuthenticatedSocket, room: string): void {
+    socket.leave(room);
+    logger.debug('Socket left room', {
+      socketId: socket.id,
+      userId: socket.user?.id,
+      room
+    });
+  }
+
+  private handleMarkNotificationRead(socket: AuthenticatedSocket, notificationId: string): void {
+    // Here you could implement notification read status tracking
+    logger.debug('Notification marked as read', {
+      socketId: socket.id,
+      userId: socket.user?.id,
+      notificationId
+    });
+  }
+
+  private canJoinRoom(user: { role: string }, room: string): boolean {
+    // Admin can join any room
+    if (user.role === 'ADMIN') return true;
+
+    // Define room access rules
+    const allowedRooms = {
+      USER: ['general', `user:${user}`, 'role:USER'],
+      MANAGER: ['general', `user:${user}`, 'role:USER', 'role:MANAGER', 'orders', 'inventory'],
+      ADMIN: ['*'] // Already handled above
+    };
+
+    const userAllowedRooms = allowedRooms[user.role as keyof typeof allowedRooms] || [];
+    return userAllowedRooms.includes('*') || userAllowedRooms.includes(room);
+  }
+
+  /**
+   * Send notification to specific user
+   */
+  public notifyUser(userId: number, notification: NotificationPayload): void {
+    const userSockets = this.connectedUsers.get(userId);
+    if (userSockets && userSockets.length > 0) {
+      userSockets.forEach(socket => {
+        socket.emit('notification', notification);
+      });
+
+      logger.debug('Notification sent to user', {
+        userId,
+        type: notification.type,
+        socketsCount: userSockets.length
+      });
+    }
+  }
+
+  /**
+   * Send notification to users with specific role
+   */
+  public notifyRole(role: 'USER' | 'MANAGER' | 'ADMIN', notification: NotificationPayload): void {
+    this.io.to(`role:${role}`).emit('notification', notification);
+
+    logger.debug('Notification sent to role', {
+      role,
+      type: notification.type
+    });
+  }
+
+  /**
+   * Send notification to all admins
+   */
+  public notifyAdmins(notification: NotificationPayload): void {
+    this.notifyRole('ADMIN', notification);
+  }
+
+  /**
+   * Send notification to all managers and admins
+   */
+  public notifyManagers(notification: NotificationPayload): void {
+    this.notifyRole('MANAGER', notification);
+    this.notifyRole('ADMIN', notification);
+  }
+
+  /**
+   * Send notification to all connected users
+   */
+  public notifyAll(notification: NotificationPayload): void {
+    this.io.to('general').emit('notification', notification);
+
+    logger.debug('Notification sent to all users', {
+      type: notification.type
+    });
+  }
+
+  /**
+   * Send notification to specific room
+   */
+  public notifyRoom(room: string, notification: NotificationPayload): void {
+    this.io.to(room).emit('notification', notification);
+
+    logger.debug('Notification sent to room', {
+      room,
+      type: notification.type
+    });
+  }
+
+  /**
+   * Order status change notification
+   */
+  public notifyOrderStatusChange(orderId: number, oldStatus: string, newStatus: string, userId?: number): void {
+    const notification: NotificationPayload = {
+      type: 'ORDER_STATUS_CHANGE',
+      title: 'Stato Ordine Aggiornato',
+      message: `Ordine #${orderId} cambiato da "${oldStatus}" a "${newStatus}"`,
+      timestamp: new Date(),
+      orderId,
+      data: {
+        orderId,
+        oldStatus,
+        newStatus
+      }
+    };
+
+    // Notify the customer if userId is provided
+    if (userId) {
+      this.notifyUser(userId, notification);
+    }
+
+    // Always notify managers and admins
+    this.notifyManagers(notification);
+  }
+
+  /**
+   * New order notification
+   */
+  public notifyNewOrder(orderId: number, customerName: string, totalAmount: number): void {
+    const notification: NotificationPayload = {
+      type: 'ORDER_CREATED',
+      title: 'Nuovo Ordine Ricevuto',
+      message: `Nuovo ordine #${orderId} da ${customerName} per €${totalAmount.toFixed(2)}`,
+      timestamp: new Date(),
+      orderId,
+      data: {
+        orderId,
+        customerName,
+        totalAmount
+      }
+    };
+
+    this.notifyManagers(notification);
+  }
+
+  /**
+   * Low inventory notification
+   */
+  public notifyLowInventory(productName: string, currentStock: number, minStock: number): void {
+    const notification: NotificationPayload = {
+      type: 'INVENTORY_LOW',
+      title: 'Scorte in Esaurimento',
+      message: `${productName}: solo ${currentStock} rimanenti (minimo: ${minStock})`,
+      timestamp: new Date(),
+      data: {
+        productName,
+        currentStock,
+        minStock
+      }
+    };
+
+    this.notifyManagers(notification);
+  }
+
+  /**
+   * Get connection statistics
+   */
+  public getStats(): {
+    totalConnectedUsers: number;
+    totalActiveSockets: number;
+    connectionsByRole: Record<string, number>;
+  } {
+    const connectionsByRole: Record<string, number> = { USER: 0, MANAGER: 0, ADMIN: 0 };
+    let totalSockets = 0;
+
+    this.connectedUsers.forEach(sockets => {
+      totalSockets += sockets.length;
+      sockets.forEach(socket => {
+        if (socket.user?.role) {
+          connectionsByRole[socket.user.role] = (connectionsByRole[socket.user.role] || 0) + 1;
+        }
+      });
+    });
+
+    return {
+      totalConnectedUsers: this.connectedUsers.size,
+      totalActiveSockets: totalSockets,
+      connectionsByRole
+    };
+  }
+
+  /**
+   * Close all connections and cleanup
+   */
+  public shutdown(): void {
+    this.io.close();
+    this.connectedUsers.clear();
+    logger.info('NotificationService shutdown completed');
+  }
+}
+
+// Global instance
+let notificationService: NotificationService | null = null;
+
+export const initializeNotificationService = (server: HTTPServer): NotificationService => {
+  if (notificationService) {
+    return notificationService;
+  }
+
+  notificationService = new NotificationService(server);
+  return notificationService;
+};
+
+export const getNotificationService = (): NotificationService | null => {
+  return notificationService;
+};

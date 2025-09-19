@@ -96,31 +96,62 @@ interface BackupInfo {
 
 const SystemPage: React.FC = () => {
   const { user } = useAuth();
+
+  // Job descriptions and schedules
+  const getJobDescriptions = () => {
+    return [
+      {
+        name: 'Backup Database',
+        schedule: 'Ogni giorno alle 02:00',
+        description: 'Crea automaticamente backup del database con compressione',
+        color: 'text-blue-700',
+        active: backup?.scheduler?.activeJobs > 0
+      },
+      {
+        name: 'Backup File',
+        schedule: 'Ogni domenica alle 03:00',
+        description: 'Crea backup di immagini, documenti e file caricati',
+        color: 'text-green-700',
+        active: backup?.scheduler?.activeJobs > 0
+      },
+      {
+        name: 'Pulizia Database',
+        schedule: 'Ogni giorno alle 01:00',
+        description: 'Rimuove backup database vecchi secondo retention policy',
+        color: 'text-orange-700',
+        active: backup?.scheduler?.activeJobs > 0
+      },
+      {
+        name: 'Pulizia File',
+        schedule: 'Ogni giorno alle 01:30',
+        description: 'Rimuove backup file vecchi per liberare spazio disco',
+        color: 'text-purple-700',
+        active: backup?.scheduler?.activeJobs > 0
+      }
+    ];
+  };
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
   const [backup, setBackup] = useState<BackupInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [backupLoading, setBackupLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Modals state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [success, setSuccess] = useState('');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     loadSystemData();
-    // Refresh every 30 seconds
-    const interval = setInterval(loadSystemData, 30000);
+    // Refresh every 5 minutes (conservative to avoid rate limiting)
+    const interval = setInterval(loadSystemData, 300000);
     return () => clearInterval(interval);
   }, []);
 
-  // Debug user role
-  useEffect(() => {
-    console.log('Current user in SystemPage:', user);
-    console.log('User role:', user?.role);
-  }, [user]);
 
   const loadSystemData = async () => {
     try {
@@ -147,9 +178,18 @@ const SystemPage: React.FC = () => {
 
     } catch (err: any) {
       console.error('Error loading system data:', err);
+
+      // Handle rate limiting specifically
+      if (err.response?.status === 429 || err.message?.includes('Too many requests')) {
+        console.warn('Rate limit exceeded, skipping refresh');
+        // Don't show error to user for rate limiting during auto-refresh
+        return;
+      }
+
       setError('Errore nel caricamento dei dati di sistema');
     } finally {
       setLoading(false);
+      setLastUpdated(new Date());
     }
   };
 
@@ -165,13 +205,59 @@ const SystemPage: React.FC = () => {
         return;
       }
 
+      // Show progress message
+      setSuccess('🔄 Creazione backup in corso (database + file)...');
+
       const response = await backupService.createBackup();
       if (response.success) {
-        setSuccess('Backup creato con successo');
+        const backupData = response.data;
+
+        // Handle combined backup (database + files)
+        if (backupData.combined) {
+          const dbData = backupData.database;
+          const filesData = backupData.files;
+          const totalRecords = Object.values(dbData.metadata.recordCounts).reduce((a: number, b: number) => a + b, 0);
+
+          setSuccess(
+            `✅ Backup completo creato con successo! ` +
+            `Database: ${dbData.size} (${dbData.metadata.tables.length} tabelle, ${totalRecords} record) | ` +
+            `File: ${filesData.size} (${filesData.metadata.fileCount} file) | ` +
+            `Durata totale: ${Math.max(dbData.duration, filesData.duration)}ms`
+          );
+        }
+        // Handle partial success (only database or with file error)
+        else if (backupData.database && !backupData.files) {
+          const dbData = backupData.database;
+          const totalRecords = Object.values(dbData.metadata.recordCounts).reduce((a: number, b: number) => a + b, 0);
+
+          setSuccess(
+            `⚠️ Backup database completato, errore nei file. ` +
+            `Database: ${dbData.size} (${dbData.metadata.tables.length} tabelle, ${totalRecords} record) | ` +
+            `Errore file: ${backupData.error}`
+          );
+        }
+        // Handle single backup (legacy or manual database only)
+        else if (backupData.metadata) {
+          const totalRecords = Object.values(backupData.metadata.recordCounts).reduce((a: number, b: number) => a + b, 0);
+
+          setSuccess(
+            `✅ Backup database completato! ` +
+            `File: ${backupData.size} | ` +
+            `${backupData.metadata.tables.length} tabelle | ` +
+            `${totalRecords} record | ` +
+            `Completato in ${backupData.duration}ms`
+          );
+        }
+
+        // Auto-dismiss success message after 15 seconds (longer for detailed messages)
+        setTimeout(() => {
+          setSuccess('');
+        }, 15000);
+
         // Refresh backup status
         loadSystemData();
       } else {
-        setError(response.error || 'Errore nella creazione del backup');
+        setError(response.error || response.message || 'Errore nella creazione del backup');
       }
     } catch (err: any) {
       console.error('Error creating backup:', err);
@@ -186,6 +272,91 @@ const SystemPage: React.FC = () => {
       }
     } finally {
       setBackupLoading(false);
+    }
+  };
+
+  const handleCleanupBackups = async () => {
+    try {
+      setActionLoading('cleanup-backups');
+      setError('');
+      setSuccess('');
+
+      // Check user permissions
+      if (user?.role !== 'ADMIN') {
+        setError('Solo gli amministratori possono pulire i backup');
+        return;
+      }
+
+      const response = await backupService.cleanupOldBackups();
+      if (response.success) {
+        const { data } = response;
+        const totalDeleted = data.summary.totalDeleted;
+
+        if (totalDeleted > 0) {
+          setSuccess(`🗑️ Pulizia completata! Rimossi ${totalDeleted} backup vecchi.`);
+        } else {
+          setSuccess('✅ Nessun backup da pulire. Tutti i backup rientrano nella retention policy.');
+        }
+
+        // Refresh backup status
+        loadSystemData();
+      } else {
+        setError(response.error || 'Errore durante la pulizia dei backup');
+      }
+    } catch (err: any) {
+      console.error('Error cleaning up backups:', err);
+
+      if (err.response?.status === 401) {
+        setError('Sessione scaduta. Effettua nuovamente il login.');
+      } else if (err.response?.status === 403) {
+        setError('Non hai i permessi necessari per questa operazione.');
+      } else {
+        setError('Errore durante la pulizia dei backup. Verifica la connessione al server.');
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCleanupFiles = async () => {
+    try {
+      setActionLoading('cleanup-files');
+      setError('');
+      setSuccess('');
+
+      // Check user permissions
+      if (user?.role !== 'ADMIN') {
+        setError('Solo gli amministratori possono pulire i file orfani');
+        return;
+      }
+
+      const response = await backupService.cleanupOrphanedFiles();
+      if (response.success) {
+        const deletedCount = response.data.deletedCount;
+
+        if (deletedCount > 0) {
+          setSuccess(`🗑️ Pulizia file completata! Rimossi ${deletedCount} file orfani.`);
+        } else {
+          setSuccess('✅ Nessun file orfano trovato. Sistema pulito.');
+        }
+
+        // Refresh system data
+        loadSystemData();
+      } else {
+        setError(response.error || response.message || 'Errore durante la pulizia dei file');
+      }
+    } catch (err: any) {
+      console.error('Error cleaning up files:', err);
+
+      if (err.response?.status === 401) {
+        setError('Sessione scaduta. Effettua nuovamente il login.');
+      } else if (err.response?.status === 403) {
+        setError('Non hai i permessi necessari per questa operazione.');
+      } else {
+        setError('Errore durante la pulizia dei file. Verifica la connessione al server.');
+      }
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -266,14 +437,21 @@ const SystemPage: React.FC = () => {
               </p>
             </div>
             <div className="mt-4 sm:mt-0 flex space-x-3">
-              <Button
-                variant="secondary"
-                onClick={loadSystemData}
-                icon={<RefreshCw className="h-4 w-4" />}
-                loading={loading}
-              >
-                Aggiorna
-              </Button>
+              <div className="flex items-center space-x-3">
+                {lastUpdated && (
+                  <span className="text-xs text-gray-500">
+                    Ultimo aggiornamento: {lastUpdated.toLocaleTimeString('it-IT')}
+                  </span>
+                )}
+                <Button
+                  variant="secondary"
+                  onClick={loadSystemData}
+                  icon={<RefreshCw className="h-4 w-4" />}
+                  loading={loading}
+                >
+                  Aggiorna
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -534,45 +712,97 @@ const SystemPage: React.FC = () => {
           <Card>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">Gestione Backup</h3>
-              <Button
-                variant="primary"
-                onClick={createBackup}
-                loading={backupLoading}
-                icon={<Download className="h-4 w-4" />}
-              >
-                Crea Backup Ora
-              </Button>
+              <div className="flex items-center space-x-3">
+                {user?.role !== 'ADMIN' && (
+                  <span className="text-sm text-gray-500">Solo amministratori</span>
+                )}
+                <Button
+                  variant="primary"
+                  onClick={createBackup}
+                  loading={backupLoading}
+                  icon={<Download className="h-4 w-4" />}
+                  disabled={user?.role !== 'ADMIN'}
+                >
+                  {backupLoading ? 'Backup in corso...' : 'Crea Backup Completo'}
+                </Button>
+              </div>
             </div>
 
+            {/* Backup Progress Indicator */}
+            {backupLoading && (
+              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-4">
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                  <div className="text-sm text-blue-800">
+                    <div className="font-medium">Creazione backup completo in corso...</div>
+                    <div className="text-xs mt-1">
+                      Stiamo creando una copia sicura del database e dei file caricati. Questo processo potrebbe richiedere alcuni secondi.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
+              <div className="text-center p-4 bg-gray-50 rounded-lg" title="Numero totale di job automatici configurati nel sistema">
                 <div className="text-2xl font-bold text-gray-900">
                   {backup?.scheduler?.totalJobs || 0}
                 </div>
-                <div className="text-sm text-gray-600">Job Backup</div>
+                <div className="text-sm text-gray-600">Job Configurati</div>
+                <div className="text-xs text-gray-500 mt-1">Backup + Cleanup</div>
               </div>
 
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
+              <div className="text-center p-4 bg-gray-50 rounded-lg" title="Numero di job attualmente attivi e funzionanti">
                 <div className="text-2xl font-bold text-gray-900">
                   {backup?.scheduler?.activeJobs || 0}
                 </div>
                 <div className="text-sm text-gray-600">Job Attivi</div>
+                <div className="text-xs text-gray-500 mt-1">Automatici</div>
               </div>
 
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
+              <div className="text-center p-4 bg-gray-50 rounded-lg" title="Stato generale del sistema di backup">
                 <div className={`text-2xl font-bold ${
                   backup?.status === 'healthy' ? 'text-green-900' : 'text-red-900'
                 }`}>
                   {backup?.status === 'healthy' ? 'Sano' : 'Errore'}
                 </div>
                 <div className="text-sm text-gray-600">Stato Sistema</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {backup?.status === 'healthy' ? 'Funzionante' : 'Problemi'}
+                </div>
               </div>
 
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
+              <div className="text-center p-4 bg-gray-50 rounded-lg" title="Numero di giorni per cui vengono mantenuti i backup giornalieri">
                 <div className="text-2xl font-bold text-gray-900">
                   {backup?.storage?.retention?.daily || 7}
                 </div>
                 <div className="text-sm text-gray-600">Giorni Retention</div>
+                <div className="text-xs text-gray-500 mt-1">Policy giornaliera</div>
+              </div>
+            </div>
+
+            {/* Job Descriptions */}
+            <div className="mt-6 bg-gray-50 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                <Clock className="h-4 w-4 mr-2 text-gray-500" />
+                Job Automatici Programmati
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                {getJobDescriptions().map((job, index) => (
+                  <div key={index} className="bg-white rounded p-3 border border-gray-200">
+                    <div className={`font-medium mb-1 ${job.color}`}>{job.name}</div>
+                    <div className="text-gray-600 mb-1">{job.schedule}</div>
+                    <div className="text-gray-500">{job.description}</div>
+                    {backup?.scheduler?.totalJobs > 0 && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        Stato: {job.active ? '🟢 Attivo' : '🔴 Inattivo'}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 text-xs text-gray-500 flex items-center">
+                <span>💡 I job sono gestiti automaticamente dal sistema. Retention: 7 giorni daily, 4 settimane weekly, 12 mesi monthly.</span>
               </div>
             </div>
 
@@ -581,6 +811,7 @@ const SystemPage: React.FC = () => {
                 variant="secondary"
                 size="sm"
                 icon={<Eye className="h-4 w-4" />}
+                disabled={user?.role !== 'ADMIN'}
                 onClick={() => {
                   if (user?.role !== 'ADMIN') {
                     setError('Solo gli amministratori possono visualizzare la cronologia backup');
@@ -588,6 +819,7 @@ const SystemPage: React.FC = () => {
                   }
                   setShowHistoryModal(true);
                 }}
+                title={user?.role !== 'ADMIN' ? 'Accesso riservato agli amministratori' : 'Visualizza la cronologia dei backup'}
               >
                 Visualizza Cronologia
               </Button>
@@ -595,6 +827,7 @@ const SystemPage: React.FC = () => {
                 variant="secondary"
                 size="sm"
                 icon={<Settings className="h-4 w-4" />}
+                disabled={user?.role !== 'ADMIN'}
                 onClick={() => {
                   if (user?.role !== 'ADMIN') {
                     setError('Solo gli amministratori possono accedere alle configurazioni backup');
@@ -602,6 +835,7 @@ const SystemPage: React.FC = () => {
                   }
                   setShowConfigModal(true);
                 }}
+                title={user?.role !== 'ADMIN' ? 'Accesso riservato agli amministratori' : 'Configura le impostazioni di backup'}
               >
                 Configurazione
               </Button>
@@ -609,6 +843,7 @@ const SystemPage: React.FC = () => {
                 variant="secondary"
                 size="sm"
                 icon={<RotateCcw className="h-4 w-4" />}
+                disabled={user?.role !== 'ADMIN'}
                 onClick={() => {
                   if (user?.role !== 'ADMIN') {
                     setError('Solo gli amministratori possono ripristinare backup');
@@ -616,46 +851,41 @@ const SystemPage: React.FC = () => {
                   }
                   setShowRestoreModal(true);
                 }}
+                title={user?.role !== 'ADMIN' ? 'Accesso riservato agli amministratori' : 'Ripristina da un backup esistente'}
               >
                 Ripristina Backup
               </Button>
             </div>
-          </Card>
 
-          {/* Quick Actions */}
-          <Card>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Azioni Rapide</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Cleanup Actions */}
+            <div className="mt-3 pt-3 border-t border-gray-200 flex flex-wrap gap-2">
+              <span className="text-xs text-gray-500 w-full mb-2">Azioni di Pulizia (Avanzate)</span>
               <Button
-                variant="secondary"
-                fullWidth
+                variant="warning"
+                size="sm"
                 icon={<Trash2 className="h-4 w-4" />}
+                disabled={user?.role !== 'ADMIN'}
+                onClick={handleCleanupBackups}
+                loading={actionLoading === 'cleanup-backups'}
+                title={user?.role !== 'ADMIN' ? 'Accesso riservato agli amministratori' : 'Pulisci backup vecchi secondo retention policy'}
               >
-                Pulisci Cache
+                Pulisci Backup Vecchi
               </Button>
+
               <Button
-                variant="secondary"
-                fullWidth
-                icon={<Server className="h-4 w-4" />}
+                variant="warning"
+                size="sm"
+                icon={<Trash2 className="h-4 w-4" />}
+                disabled={user?.role !== 'ADMIN'}
+                onClick={handleCleanupFiles}
+                loading={actionLoading === 'cleanup-files'}
+                title={user?.role !== 'ADMIN' ? 'Accesso riservato agli amministratori' : 'Pulisci file orfani non più utilizzati'}
               >
-                Riavvia Servizi
-              </Button>
-              <Button
-                variant="secondary"
-                fullWidth
-                icon={<Archive className="h-4 w-4" />}
-              >
-                Esporta Logs
-              </Button>
-              <Button
-                variant="danger"
-                fullWidth
-                icon={<Wrench className="h-4 w-4" />}
-              >
-                Manutenzione
+                Pulisci File Orfani
               </Button>
             </div>
           </Card>
+
         </div>
       </div>
 

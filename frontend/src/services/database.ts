@@ -6,7 +6,7 @@
 import axios from 'axios';
 import React from 'react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
 export interface DatabaseHealth {
   status: 'OK' | 'ERROR';
@@ -54,7 +54,7 @@ class DatabaseService {
 
       return health;
     } catch (error) {
-      console.error('Database health check failed:', error);
+      // Silently handle health check failures to avoid console spam
 
       const errorHealth: DatabaseHealth = {
         status: 'ERROR',
@@ -123,6 +123,14 @@ class DatabaseService {
   }
 
   /**
+   * Force an immediate health check (useful after database operations)
+   */
+  async forceHealthCheck(): Promise<DatabaseHealth> {
+    this.lastCheck = 0; // Reset cache
+    return await this.checkHealth();
+  }
+
+  /**
    * Stop periodic health checks
    */
   stopHealthMonitoring(): void {
@@ -155,7 +163,7 @@ class DatabaseService {
       try {
         listener(healthy);
       } catch (error) {
-        console.error('Error in health status listener:', error);
+        // Silently handle listener errors
       }
     });
   }

@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-09-19T15:34:28.947Z",
+  "tables": [
+    "users",
+    "categories",
+    "products",
+    "orders",
+    "orderItems",
+    "productImages",
+    "userAvatars",
+    "uploadedFiles"
+  ],
+  "recordCounts": {
+    "users": 5,
+    "categories": 9,
+    "products": 7,
+    "orders": 3,
+    "orderItems": 4,
+    "productImages": 4,
+    "userAvatars": 1,
+    "uploadedFiles": 0
+  },
+  "checksum": "7f94af105e5f69c63dc74a56dcb6f0feff64ffec0205e66516b85e464509fbba",
+  "backupPath": "/Users/francescodibiase/Documents/Projects/MasterWD/progetti/5-NodeJS-Express/progetto/gestione-ordini-e-inventario/backend/backups/database_backup_2025-09-19_17-34-28.db.zip",
+  "version": "1.0",
+  "type": "database"
+}

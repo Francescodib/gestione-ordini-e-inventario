@@ -81,12 +81,13 @@ export class DatabaseBackupService {
       
       // Compress backup if enabled
       if (config.database.compression) {
+        const originalSize = finalSize; // Store original size before compression
         await this.compressBackup(backupPath, compressedPath);
         await fs.remove(backupPath); // Remove uncompressed version
         finalPath = compressedPath;
         finalSize = (await fs.stat(compressedPath)).size;
-        logger.info('Database backup compressed', { 
-          originalSize: formatBackupSize((await fs.stat(backupPath)).size),
+        logger.info('Database backup compressed', {
+          originalSize: formatBackupSize(originalSize),
           compressedSize: formatBackupSize(finalSize)
         });
       }
@@ -339,11 +340,18 @@ export class DatabaseBackupService {
         await fs.copy(backupCurrentPath, currentDbPath);
         throw restoreError;
       } finally {
-        // Reconnect Sequelize
+        // Reconnect Sequelize and resync models
         try {
           await sequelize.authenticate();
+          logger.info('Database connection restored after backup restore');
+
+          // Resync all models to ensure they work with the restored database
+          await sequelize.sync({ alter: false });
+          logger.info('Database models resynced after restore');
+
         } catch (reconnectError: any) {
           logger.error('Failed to reconnect to database after restore', { error: reconnectError.message });
+          throw new Error(`Database reconnection failed after restore: ${reconnectError.message}`);
         }
         
         // Clean up temporary backup
