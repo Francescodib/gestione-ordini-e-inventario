@@ -138,19 +138,35 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       const url = error.config?.url || '';
       const isAuthEndpoint = url.includes('/login') || url.includes('/register');
-      
+
       if (!isAuthEndpoint) {
         // Token scaduto o non valido - solo per endpoint protetti
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        
-        // Use history API instead of window.location to avoid hard refresh
-        if (window.location.pathname !== '/login') {
-          window.history.pushState({}, '', '/login');
-          window.location.reload();
+
+        // For backup endpoints, don't redirect immediately - let the component handle the error
+        const isBackupEndpoint = url.includes('/backup/');
+        if (!isBackupEndpoint) {
+          // Use history API instead of window.location to avoid hard refresh
+          if (window.location.pathname !== '/login') {
+            window.history.pushState({}, '', '/login');
+            window.location.reload();
+          }
         }
       }
     }
+
+    // For backup endpoints, add additional error information for better handling
+    if (error.config?.url?.includes('/backup/')) {
+      if (error.response?.status === 401) {
+        error.authError = true;
+        error.message = 'Authentication required';
+      } else if (error.response?.status === 403) {
+        error.permissionError = true;
+        error.message = 'Insufficient permissions';
+      }
+    }
+
     return Promise.reject(error);
   }
 );
@@ -213,6 +229,11 @@ export const authService = {
 
   async sendPasswordReset(email: string): Promise<ApiResponse<void>> {
     const response = await api.post('/users/reset-password', { email });
+    return response.data;
+  },
+
+  async getUserLastAddress(userId: string): Promise<ApiResponse<{ shippingAddress: any; billingAddress: any }>> {
+    const response = await api.get(`/users/${userId}/last-address`);
     return response.data;
   }
 };
@@ -407,18 +428,78 @@ export const monitoringService = {
 };
 
 export const backupService = {
-  async getBackupStatus(): Promise<ApiResponse<{status: string, lastBackup?: string}>> {
+  async getBackupStatus(): Promise<ApiResponse<any>> {
     const response = await api.get('/backup/status');
     return response.data;
   },
 
-  async createBackup(): Promise<ApiResponse<{backupId: string, timestamp: string}>> {
-    const response = await api.post('/backup/create');
+  async createDatabaseBackup(): Promise<ApiResponse<any>> {
+    const response = await api.post('/backup/database');
     return response.data;
   },
 
-  async getBackupHistory(): Promise<ApiResponse<{backupId: string, timestamp: string, size: number}[]>> {
-    const response = await api.get('/backup/history');
+  async createFilesBackup(): Promise<ApiResponse<any>> {
+    const response = await api.post('/backup/files');
+    return response.data;
+  },
+
+  async createBackup(): Promise<ApiResponse<any>> {
+    // Create both database and files backup
+    const response = await api.post('/backup/database');
+    return response.data;
+  },
+
+  async getBackupList(type?: 'database' | 'files'): Promise<ApiResponse<any[]>> {
+    const response = await api.get('/backup/list', {
+      params: type ? { type } : {}
+    });
+    return response.data;
+  },
+
+  async getBackupHistory(): Promise<ApiResponse<any[]>> {
+    return this.getBackupList();
+  },
+
+  async restoreDatabase(backupPath: string): Promise<ApiResponse<any>> {
+    const response = await api.post('/backup/restore/database', {
+      backupPath
+    });
+    return response.data;
+  },
+
+  async restoreFiles(backupPath: string, targetDirectory?: string): Promise<ApiResponse<any>> {
+    const response = await api.post('/backup/restore/files', {
+      backupPath,
+      targetDirectory
+    });
+    return response.data;
+  },
+
+  async verifyBackup(backupPath: string, type: 'database' | 'files'): Promise<ApiResponse<any>> {
+    const response = await api.post('/backup/verify', {
+      backupPath,
+      type
+    });
+    return response.data;
+  },
+
+  async triggerJob(jobName: string): Promise<ApiResponse<any>> {
+    const response = await api.post(`/backup/jobs/${jobName}/trigger`);
+    return response.data;
+  },
+
+  async cleanupOldBackups(): Promise<ApiResponse<any>> {
+    const response = await api.post('/backup/cleanup');
+    return response.data;
+  },
+
+  async getBackupStats(): Promise<ApiResponse<any>> {
+    const response = await api.get('/backup/stats');
+    return response.data;
+  },
+
+  async getJobs(): Promise<ApiResponse<any[]>> {
+    const response = await api.get('/backup/jobs');
     return response.data;
   }
 };

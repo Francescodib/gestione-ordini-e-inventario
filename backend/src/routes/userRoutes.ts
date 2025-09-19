@@ -601,6 +601,69 @@ router.delete('/:id', verifyToken, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/users/:id/last-address
+ * Recupero dell'ultimo indirizzo utilizzato dall'utente
+ */
+router.get('/:id/last-address', verifyToken, async (req: Request, res: Response) => {
+  try {
+    const userId = parseIntId(req.params.id);
+
+    // Recupera l'ultimo ordine dell'utente che ha un indirizzo di spedizione
+    const query = `
+      SELECT shippingAddress, billingAddress
+      FROM orders
+      WHERE userId = ? AND shippingAddress IS NOT NULL
+      ORDER BY createdAt DESC
+      LIMIT 1
+    `;
+
+    const { sequelize } = require('../config/database');
+    const [results] = await sequelize.query(query, {
+      replacements: [userId],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (!results) {
+      return res.status(404).json({
+        success: false,
+        message: 'No previous address found for this user'
+      });
+    }
+
+    // Parse gli indirizzi JSON
+    let shippingAddress = {};
+    let billingAddress = {};
+
+    try {
+      if (results.shippingAddress) {
+        shippingAddress = JSON.parse(results.shippingAddress);
+      }
+      if (results.billingAddress) {
+        billingAddress = JSON.parse(results.billingAddress);
+      }
+    } catch (parseError) {
+      logger.error('Error parsing address JSON:', parseError);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        shippingAddress,
+        billingAddress
+      },
+      message: 'Last address retrieved successfully'
+    });
+  } catch (error: any) {
+    logger.error('Error retrieving last address:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving last address',
+      error: error.message
+    });
+  }
+});
+
 // Middleware di gestione errori di validazione
 router.use(handleValidationErrors());
 

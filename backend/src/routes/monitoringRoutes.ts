@@ -53,13 +53,19 @@ router.get('/health', async (req: Request, res: Response) => {
     
     const healthChecks = await systemMonitoring.performHealthChecks();
     const schedulerStatus = monitoringScheduler.getMonitoringStatus();
-    
-    const overallStatus = healthChecks.every(check => check.status === 'healthy') && 
+
+    const overallStatus = healthChecks.every(check => check.status === 'healthy') &&
                          schedulerStatus.status === 'healthy' ? 'healthy' : 'degraded';
-    
+
     const unhealthyChecks = healthChecks.filter(check => check.status === 'unhealthy');
     const degradedChecks = healthChecks.filter(check => check.status === 'degraded');
-    
+
+    // Get system metrics for uptime and other info
+    const metricsSummary = systemMonitoring.getMetricsSummary();
+
+    // Fallback to process uptime if system metrics aren't available yet
+    const uptime = metricsSummary?.system?.uptime || formatUptime(process.uptime());
+
     res.json({
       success: true,
       message: 'Health check completed',
@@ -69,7 +75,10 @@ router.get('/health', async (req: Request, res: Response) => {
         summary: {
           healthy: healthChecks.filter(check => check.status === 'healthy').length,
           degraded: degradedChecks.length,
-          unhealthy: unhealthyChecks.length
+          unhealthy: unhealthyChecks.length,
+          uptime: uptime,
+          memoryUsage: metricsSummary?.system?.memory ? parseFloat(metricsSummary.system.memory.replace('%', '')) : 0,
+          diskUsage: metricsSummary?.system?.disk ? parseFloat(metricsSummary.system.disk.replace('%', '')) : 0
         },
         components: healthChecks.map(check => ({
           component: check.component,

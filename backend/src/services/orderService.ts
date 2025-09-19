@@ -126,6 +126,18 @@ export interface OrderStats {
     revenue: number;
     orderCount: number;
   }>;
+  recent: Array<{
+    id: number;
+    orderNumber: string;
+    status: OrderStatus;
+    totalAmount: number;
+    createdAt: string;
+    user?: {
+      id: number;
+      firstName: string;
+      lastName: string;
+    };
+  }>;
 }
 
 /**
@@ -744,7 +756,8 @@ export class OrderService {
         totalOrders,
         statusCounts,
         revenueStats,
-        topProducts
+        topProducts,
+        recentOrders
       ] = await Promise.all([
         // Total orders count
         Order.count(),
@@ -782,6 +795,19 @@ export class OrderService {
           order: [[sequelize.fn('SUM', sequelize.col('totalPrice')), 'DESC']],
           limit: 10,
           raw: true
+        }),
+
+        // Recent orders (last 10)
+        Order.findAll({
+          order: [['createdAt', 'DESC']],
+          limit: 10,
+          include: [
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'firstName', 'lastName']
+            }
+          ]
         })
       ]);
 
@@ -810,6 +836,20 @@ export class OrderService {
         })
       );
 
+      // Process recent orders
+      const recentOrdersFormatted = recentOrders.map(order => ({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        totalAmount: order.totalAmount,
+        createdAt: order.createdAt.toISOString(),
+        user: order.user ? {
+          id: order.user.id,
+          firstName: order.user.firstName,
+          lastName: order.user.lastName
+        } : undefined
+      }));
+
       // Get revenue by month (last 12 months)
       const monthlyRevenue = await this.getMonthlyRevenue();
 
@@ -826,7 +866,8 @@ export class OrderService {
         totalRevenue,
         averageOrderValue,
         topProducts: topProductsWithDetails,
-        revenueByMonth: monthlyRevenue
+        revenueByMonth: monthlyRevenue,
+        recent: recentOrdersFormatted
       };
     } catch (error: any) {
       logUtils.logDbOperation('AGGREGATE', 'orders', undefined, error);

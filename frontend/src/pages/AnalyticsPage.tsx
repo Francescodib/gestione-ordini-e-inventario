@@ -157,10 +157,11 @@ const AnalyticsPage: React.FC = () => {
       // Process system stats
       if (systemStatsResponse.status === 'fulfilled' && systemStatsResponse.value.success) {
         const systemStats = systemStatsResponse.value.data;
+        console.log('System stats from backend:', systemStats);
         analyticsData.system = {
-          uptime: systemStats.uptime || 'N/A',
-          memoryUsage: systemStats.memoryUsage || 0,
-          diskUsage: systemStats.diskUsage || 0,
+          uptime: systemStats.summary?.uptime || 'N/A',
+          memoryUsage: systemStats.summary?.memoryUsage || 0,
+          diskUsage: systemStats.summary?.diskUsage || 0,
           activeConnections: systemStats.activeConnections || 0
         };
       }

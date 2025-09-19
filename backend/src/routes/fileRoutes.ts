@@ -319,16 +319,9 @@ router.get('/users/:userId/avatar',
 
       const avatar = await FileService.getUserAvatar(userId);
 
-      if (!avatar) {
-        return res.status(404).json({
-          success: false,
-          message: 'Avatar not found'
-        });
-      }
-
       res.json({
         success: true,
-        data: avatar
+        data: avatar // può essere null se non esiste
       });
 
     } catch (error: any) {

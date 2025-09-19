@@ -5,11 +5,14 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
+import BackupHistoryModal from '../components/BackupHistoryModal';
+import BackupConfigModal from '../components/BackupConfigModal';
+import BackupRestoreModal from '../components/BackupRestoreModal';
 import { useAuth } from '../contexts/AuthContext';
 import {
   RefreshCw, AlertTriangle, CheckCircle, Database, Clock,
   FileText, Activity, HardDrive, Cpu, Download, Settings,
-  Eye, RotateCcw, Trash2, Wrench, Server, Shield, Archive
+  Eye, RotateCcw, Trash2, Wrench, Server, Shield, Archive, X
 } from 'lucide-react';
 
 interface SystemHealth {
@@ -83,7 +86,11 @@ interface BackupInfo {
   };
   storage: {
     backupDirectory: string;
-    retention: number;
+    retention: {
+      daily: number;
+      weekly: number;
+      monthly: number;
+    };
   };
 }
 
@@ -96,12 +103,24 @@ const SystemPage: React.FC = () => {
   const [error, setError] = useState('');
   const [backupLoading, setBackupLoading] = useState(false);
 
+  // Modals state
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [success, setSuccess] = useState('');
+
   useEffect(() => {
     loadSystemData();
     // Refresh every 30 seconds
     const interval = setInterval(loadSystemData, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Debug user role
+  useEffect(() => {
+    console.log('Current user in SystemPage:', user);
+    console.log('User role:', user?.role);
+  }, [user]);
 
   const loadSystemData = async () => {
     try {
@@ -137,16 +156,63 @@ const SystemPage: React.FC = () => {
   const createBackup = async () => {
     try {
       setBackupLoading(true);
+      setError('');
+      setSuccess('');
+
+      // Check user permissions
+      if (user?.role !== 'ADMIN') {
+        setError('Solo gli amministratori possono creare backup');
+        return;
+      }
+
       const response = await backupService.createBackup();
       if (response.success) {
+        setSuccess('Backup creato con successo');
         // Refresh backup status
         loadSystemData();
+      } else {
+        setError(response.error || 'Errore nella creazione del backup');
       }
     } catch (err: any) {
       console.error('Error creating backup:', err);
-      setError('Errore nella creazione del backup');
+
+      // Handle authentication errors
+      if (err.response?.status === 401) {
+        setError('Sessione scaduta. Effettua nuovamente il login.');
+      } else if (err.response?.status === 403) {
+        setError('Non hai i permessi necessari per questa operazione.');
+      } else {
+        setError('Errore nella creazione del backup. Verifica la connessione al server.');
+      }
     } finally {
       setBackupLoading(false);
+    }
+  };
+
+  const handleRestoreFromModal = async (backupPath: string, type: string) => {
+    try {
+      setError('');
+      setSuccess('');
+
+      let response;
+      if (type === 'database') {
+        response = await backupService.restoreDatabase(backupPath);
+      } else {
+        response = await backupService.restoreFiles(backupPath);
+      }
+
+      if (response.success) {
+        setSuccess(`Backup ${type} ripristinato con successo`);
+        setShowHistoryModal(false);
+        setShowRestoreModal(false);
+        // Refresh system data
+        loadSystemData();
+      } else {
+        setError(`Errore nel ripristino del backup: ${response.error || 'Errore sconosciuto'}`);
+      }
+    } catch (err: any) {
+      console.error('Error restoring backup:', err);
+      setError(`Errore nel ripristino del backup: ${err.message}`);
     }
   };
 
@@ -213,6 +279,25 @@ const SystemPage: React.FC = () => {
 
           {error && (
             <ErrorMessage message={error} onDismiss={() => setError('')} />
+          )}
+
+          {success && (
+            <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
+              <div className="flex">
+                <CheckCircle className="h-5 w-5 text-green-400" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-green-800">{success}</p>
+                </div>
+                <div className="ml-auto pl-3">
+                  <button
+                    onClick={() => setSuccess('')}
+                    className="text-green-400 hover:text-green-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* System Health Status */}
@@ -485,20 +570,53 @@ const SystemPage: React.FC = () => {
 
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl font-bold text-gray-900">
-                  {backup?.storage?.retention || 7}
+                  {backup?.storage?.retention?.daily || 7}
                 </div>
                 <div className="text-sm text-gray-600">Giorni Retention</div>
               </div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button variant="secondary" size="sm" icon={<Eye className="h-4 w-4" />}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Eye className="h-4 w-4" />}
+                onClick={() => {
+                  if (user?.role !== 'ADMIN') {
+                    setError('Solo gli amministratori possono visualizzare la cronologia backup');
+                    return;
+                  }
+                  setShowHistoryModal(true);
+                }}
+              >
                 Visualizza Cronologia
               </Button>
-              <Button variant="secondary" size="sm" icon={<Settings className="h-4 w-4" />}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Settings className="h-4 w-4" />}
+                onClick={() => {
+                  if (user?.role !== 'ADMIN') {
+                    setError('Solo gli amministratori possono accedere alle configurazioni backup');
+                    return;
+                  }
+                  setShowConfigModal(true);
+                }}
+              >
                 Configurazione
               </Button>
-              <Button variant="secondary" size="sm" icon={<RotateCcw className="h-4 w-4" />}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<RotateCcw className="h-4 w-4" />}
+                onClick={() => {
+                  if (user?.role !== 'ADMIN') {
+                    setError('Solo gli amministratori possono ripristinare backup');
+                    return;
+                  }
+                  setShowRestoreModal(true);
+                }}
+              >
                 Ripristina Backup
               </Button>
             </div>
@@ -540,6 +658,23 @@ const SystemPage: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* Modals */}
+      <BackupHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        onRestore={handleRestoreFromModal}
+      />
+
+      <BackupConfigModal
+        isOpen={showConfigModal}
+        onClose={() => setShowConfigModal(false)}
+      />
+
+      <BackupRestoreModal
+        isOpen={showRestoreModal}
+        onClose={() => setShowRestoreModal(false)}
+      />
     </Layout>
   );
 };

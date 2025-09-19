@@ -104,6 +104,27 @@ const OrderDetailPage: React.FC = () => {
     return texts[status as keyof typeof texts] || status;
   };
 
+  const formatAddress = (addressString: string | Record<string, unknown>) => {
+    try {
+      // If it's already an object, use it directly
+      if (typeof addressString === 'object' && addressString !== null) {
+        const addr = addressString as any;
+        return `${addr.name || ''}\n${addr.street || ''}\n${addr.city || ''} ${addr.postalCode || ''}\n${addr.country || ''}`.trim();
+      }
+
+      // If it's a string, try to parse it as JSON
+      if (typeof addressString === 'string') {
+        const parsed = JSON.parse(addressString);
+        return `${parsed.name || ''}\n${parsed.street || ''}\n${parsed.city || ''} ${parsed.postalCode || ''}\n${parsed.country || ''}`.trim();
+      }
+
+      return 'Indirizzo non disponibile';
+    } catch (error) {
+      // If it's not JSON, return as is (fallback for plain text addresses)
+      return typeof addressString === 'string' ? addressString : 'Indirizzo non disponibile';
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -272,13 +293,13 @@ const OrderDetailPage: React.FC = () => {
                     <div>
                       <h4 className="text-sm font-medium text-gray-900 mb-2">Indirizzo di Spedizione</h4>
                       <p className="text-sm text-gray-600 whitespace-pre-line">
-                        {order.shippingAddress}
+                        {formatAddress(order.shippingAddress)}
                       </p>
                     </div>
                     <div>
                       <h4 className="text-sm font-medium text-gray-900 mb-2">Indirizzo di Fatturazione</h4>
                       <p className="text-sm text-gray-600 whitespace-pre-line">
-                        {order.billingAddress || order.shippingAddress}
+                        {formatAddress(order.billingAddress || order.shippingAddress)}
                       </p>
                     </div>
                   </div>

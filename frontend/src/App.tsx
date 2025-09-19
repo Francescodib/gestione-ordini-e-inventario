@@ -13,6 +13,7 @@ import ProductEditPage from './pages/ProductEditPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderCreatePage from './pages/OrderCreatePage';
 import OrderDetailPage from './pages/OrderDetailPage';
+import OrderEditPage from './pages/OrderEditPage';
 import SearchPage from './pages/SearchPage';
 import CategoriesPage from './pages/CategoriesPage';
 import UsersPage from './pages/UsersPage';
@@ -96,6 +97,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <OrderDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/:id/edit"
+              element={
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
+                  <OrderEditPage />
                 </ProtectedRoute>
               }
             />

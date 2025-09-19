@@ -364,10 +364,15 @@ export function formatPercentage(value: number): string {
  * Calculate uptime in human readable format
  */
 export function formatUptime(uptimeSeconds: number): string {
+  // Handle invalid or undefined values
+  if (typeof uptimeSeconds !== 'number' || isNaN(uptimeSeconds) || uptimeSeconds < 0) {
+    return 'N/A';
+  }
+
   const days = Math.floor(uptimeSeconds / 86400);
   const hours = Math.floor((uptimeSeconds % 86400) / 3600);
   const minutes = Math.floor((uptimeSeconds % 3600) / 60);
-  
+
   if (days > 0) {
     return `${days}d ${hours}h ${minutes}m`;
   } else if (hours > 0) {

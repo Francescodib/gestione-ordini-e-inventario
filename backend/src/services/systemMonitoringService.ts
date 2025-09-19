@@ -162,7 +162,7 @@ export class SystemMonitoringService {
           os: `${osInfo.distro} ${osInfo.release}`,
           platform: osInfo.platform,
           arch: osInfo.arch,
-          uptime: osInfo.uptime,
+          uptime: osInfo.uptime || process.uptime(),
           loadAverage: loadInfo.avgLoad ? [loadInfo.avgLoad] : []
         },
         cpu: {
@@ -677,7 +677,7 @@ export class SystemMonitoringService {
         cpu: formatPercentage(system.cpu.usage),
         memory: formatPercentage(system.memory.usagePercentage),
         disk: formatPercentage(system.disk.usagePercentage),
-        uptime: formatUptime(system.system.uptime)
+        uptime: formatUptime(system.system.uptime || process.uptime())
       } : null,
       application: application ? {
         users: application.business.totalUsers,
