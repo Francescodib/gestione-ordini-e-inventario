@@ -16,7 +16,18 @@ import {
   WifiOff
 } from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
-import { NotificationPayload } from '../services/notificationService';
+
+// Define NotificationPayload locally to avoid import issues
+interface NotificationPayload {
+  type: 'ORDER_STATUS_CHANGE' | 'ORDER_CREATED' | 'INVENTORY_LOW' | 'SYSTEM_ALERT';
+  title: string;
+  message: string;
+  data?: any;
+  userId?: number;
+  userRole?: 'USER' | 'MANAGER' | 'ADMIN';
+  timestamp: Date | string;
+  orderId?: number;
+}
 
 interface NotificationCenterProps {
   token?: string;

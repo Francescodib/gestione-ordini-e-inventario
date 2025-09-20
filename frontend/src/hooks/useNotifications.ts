@@ -7,10 +7,31 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getNotificationService,
   initializeNotificationService,
-  cleanupNotificationService,
-  NotificationPayload,
-  NotificationHandlers
+  cleanupNotificationService
 } from '../services/notificationService';
+
+// Define interfaces locally to avoid import issues
+interface NotificationPayload {
+  type: 'ORDER_STATUS_CHANGE' | 'ORDER_CREATED' | 'INVENTORY_LOW' | 'SYSTEM_ALERT';
+  title: string;
+  message: string;
+  data?: any;
+  userId?: number;
+  userRole?: 'USER' | 'MANAGER' | 'ADMIN';
+  timestamp: Date | string;
+  orderId?: number;
+}
+
+interface NotificationHandlers {
+  onNotification?: (notification: NotificationPayload) => void;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
+  onError?: (error: any) => void;
+  onOrderStatusChange?: (notification: NotificationPayload) => void;
+  onNewOrder?: (notification: NotificationPayload) => void;
+  onLowInventory?: (notification: NotificationPayload) => void;
+  onSystemAlert?: (notification: NotificationPayload) => void;
+}
 
 export interface NotificationState {
   notifications: NotificationPayload[];

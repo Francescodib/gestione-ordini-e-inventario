@@ -286,7 +286,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
               <div className="flex items-center space-x-4">
                 {/* Notifications */}
-                <NotificationCenter token={localStorage.getItem('token') || undefined} />
+                <NotificationCenter token={user ? localStorage.getItem('token') || undefined : undefined} />
 
                 {/* User info - mobile */}
                 <div className="md:hidden">

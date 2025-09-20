@@ -80,6 +80,39 @@ const OrderEditPage: React.FC = () => {
     }
   });
 
+  // Valid status transitions based on current status
+  const getValidStatusTransitions = (currentStatus: Order['status']): { value: Order['status']; label: string }[] => {
+    const statusTransitions: Record<Order['status'], { value: Order['status']; label: string }[]> = {
+      'PENDING': [
+        { value: 'PENDING', label: 'In Attesa' },
+        { value: 'PROCESSING', label: 'In Elaborazione' },
+        { value: 'CANCELLED', label: 'Annullato' }
+      ],
+      'PROCESSING': [
+        { value: 'PROCESSING', label: 'In Elaborazione' },
+        { value: 'SHIPPED', label: 'Spedito' },
+        { value: 'CANCELLED', label: 'Annullato' }
+      ],
+      'SHIPPED': [
+        { value: 'SHIPPED', label: 'Spedito' },
+        { value: 'DELIVERED', label: 'Consegnato' },
+        { value: 'CANCELLED', label: 'Annullato' }
+      ],
+      'DELIVERED': [
+        { value: 'DELIVERED', label: 'Consegnato' },
+        { value: 'RETURNED', label: 'Restituito' }
+      ],
+      'CANCELLED': [
+        { value: 'CANCELLED', label: 'Annullato' }
+      ],
+      'RETURNED': [
+        { value: 'RETURNED', label: 'Restituito' }
+      ]
+    };
+
+    return statusTransitions[currentStatus] || [];
+  };
+
   useEffect(() => {
     if (id) {
       loadOrder(id);
@@ -473,12 +506,11 @@ const OrderEditPage: React.FC = () => {
                       onChange={handleInputChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="PENDING">In Attesa</option>
-                      <option value="PROCESSING">In Elaborazione</option>
-                      <option value="SHIPPED">Spedito</option>
-                      <option value="DELIVERED">Consegnato</option>
-                      <option value="CANCELLED">Annullato</option>
-                      <option value="RETURNED">Restituito</option>
+                      {getValidStatusTransitions(order?.status || formData.status).map((statusOption) => (
+                        <option key={statusOption.value} value={statusOption.value}>
+                          {statusOption.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
