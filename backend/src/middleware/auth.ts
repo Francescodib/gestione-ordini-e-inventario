@@ -107,14 +107,14 @@ export function requireActiveUser(req: Request, res: Response, next: NextFunctio
  * Middleware di autenticazione opzionale
  * Non fallisce se il token è assente o non valido
  * Utile per rotte che possono funzionare sia con che senza autenticazione
- * 
+ *
  * @param req - Oggetto richiesta Express
  * @param res - Oggetto risposta Express
  * @param next - Funzione per passare al middleware successivo
  */
 export function optionalAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.split(" ")[1];
-  
+
   // Se presente un token, tenta di verificarlo
   if (token) {
     try {
@@ -125,6 +125,87 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction) {
       // Non blocca la richiesta
     }
   }
-  
+
+  next();
+}
+
+/**
+ * Middleware per verificare accesso amministratore
+ */
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({
+      message: "Authentication required",
+      error: "UNAUTHORIZED"
+    });
+  }
+
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({
+      message: "Admin access required",
+      error: "FORBIDDEN"
+    });
+  }
+
+  next();
+}
+
+/**
+ * Middleware per verificare accesso manager o admin
+ */
+export function requireManagerOrAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({
+      message: "Authentication required",
+      error: "UNAUTHORIZED"
+    });
+  }
+
+  if (req.user.role !== 'ADMIN' && req.user.role !== 'MANAGER') {
+    return res.status(403).json({
+      message: "Manager or Admin access required",
+      error: "FORBIDDEN"
+    });
+  }
+
+  next();
+}
+
+/**
+ * Middleware per verificare che l'utente possa gestire ordini (admin o manager)
+ */
+export function requireOrderManagement(req: Request, res: Response, next: NextFunction) {
+  return requireManagerOrAdmin(req, res, next);
+}
+
+/**
+ * Middleware per verificare che l'utente possa creare nuovi utenti
+ * Admin può creare tutti i tipi, Manager può creare solo clienti
+ */
+export function requireUserCreation(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({
+      message: "Authentication required",
+      error: "UNAUTHORIZED"
+    });
+  }
+
+  // Check if trying to create admin/manager and user is not admin
+  const targetRole = req.body.role;
+  if ((targetRole === 'ADMIN' || targetRole === 'MANAGER') && req.user.role !== 'ADMIN') {
+    return res.status(403).json({
+      message: "Only admins can create admin or manager accounts",
+      error: "FORBIDDEN"
+    });
+  }
+
+  // Manager and Admin can create client accounts
+  if (req.user.role !== 'ADMIN' && req.user.role !== 'MANAGER') {
+    return res.status(403).json({
+      message: "Manager or Admin access required to create users",
+      error: "FORBIDDEN"
+    });
+  }
+
   next();
 }

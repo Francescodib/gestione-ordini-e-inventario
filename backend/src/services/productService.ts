@@ -614,6 +614,76 @@ export class ProductService {
     }
   }
 
+  /**
+   * Get products with low stock (stock <= minStock)
+   */
+  static async getLowStockProducts(): Promise<Product[]> {
+    try {
+      const products = await Product.findAll({
+        where: {
+          isActive: true,
+          [Op.and]: [
+            { stock: { [Op.gt]: 0 } }, // Not out of stock
+            sequelize.where(
+              sequelize.col('stock'),
+              Op.lte,
+              sequelize.col('minStock')
+            )
+          ]
+        },
+        include: [{ model: Category, as: 'category' }],
+        order: [
+          [sequelize.literal('(stock / NULLIF(minStock, 0))'), 'ASC'], // Most critical first
+          ['updatedAt', 'DESC']
+        ]
+      });
+
+      return products;
+    } catch (error: any) {
+      logUtils.logDbOperation('SELECT', 'products', undefined, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get products filtered by low stock status
+   */
+  static async getProductsFilteredByStock(lowStockOnly: boolean = false, limit?: number): Promise<Product[]> {
+    try {
+      let whereClause: WhereOptions<any> = {
+        isActive: true
+      };
+
+      if (lowStockOnly) {
+        whereClause = {
+          ...whereClause,
+          [Op.and]: [
+            { stock: { [Op.gt]: 0 } }, // Not out of stock
+            sequelize.where(
+              sequelize.col('stock'),
+              Op.lte,
+              sequelize.col('minStock')
+            )
+          ]
+        };
+      }
+
+      const products = await Product.findAll({
+        where: whereClause,
+        include: [{ model: Category, as: 'category' }],
+        order: lowStockOnly
+          ? [[sequelize.literal('(stock / NULLIF(minStock, 0))'), 'ASC']]
+          : [['updatedAt', 'DESC']],
+        limit
+      });
+
+      return products;
+    } catch (error: any) {
+      logUtils.logDbOperation('SELECT', 'products', undefined, error);
+      throw error;
+    }
+  }
+
   // ==========================================
   // ANALYTICS AND REPORTING
   // ==========================================

@@ -143,7 +143,7 @@ const DashboardPage: React.FC = () => {
                 : 'bg-green-100 text-green-800'
             }`}>
               {user?.role === 'ADMIN' ? 'Amministratore' :
-               user?.role === 'MANAGER' ? 'Manager' : 'Utente'}
+               user?.role === 'MANAGER' ? 'Manager' : 'Cliente'}
             </span>
             <br />
             <span className="text-sm text-gray-500">Ecco una panoramica del tuo sistema.</span>
@@ -158,7 +158,7 @@ const DashboardPage: React.FC = () => {
         )}
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-6">
           <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
             <div className="flex items-center p-6">
               <div className="flex-shrink-0">
@@ -240,6 +240,69 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Low Stock Indicator Card */}
+        <div className="mb-6">
+          <Link to="/products?lowStock=true" className="block">
+            <div className={`bg-white border-2 rounded-lg shadow-sm transition-all hover:shadow-md ${
+              (stats?.lowStockProducts || 0) > 0
+                ? 'border-red-200 bg-red-50'
+                : 'border-green-200 bg-green-50'
+            }`}>
+              <div className="flex items-center p-6">
+                <div className="flex-shrink-0">
+                  <div className={`w-12 h-12 rounded-md flex items-center justify-center ${
+                    (stats?.lowStockProducts || 0) > 0
+                      ? 'bg-red-100'
+                      : 'bg-green-100'
+                  }`}>
+                    <svg className={`h-6 w-6 ${
+                      (stats?.lowStockProducts || 0) > 0
+                        ? 'text-red-600'
+                        : 'text-green-600'
+                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d={(stats?.lowStockProducts || 0) > 0
+                          ? "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.664-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"
+                          : "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        }
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div className="ml-4 flex-1">
+                  <div className={`text-sm font-medium mb-1 ${
+                    (stats?.lowStockProducts || 0) > 0
+                      ? 'text-red-800'
+                      : 'text-green-800'
+                  }`}>
+                    Stato Inventario
+                  </div>
+                  <div className={`text-2xl font-semibold ${
+                    (stats?.lowStockProducts || 0) > 0
+                      ? 'text-red-900'
+                      : 'text-green-900'
+                  }`}>
+                    {(stats?.lowStockProducts || 0) > 0
+                      ? `${stats?.lowStockProducts} prodotti a scorte basse`
+                      : 'Tutti i prodotti ben forniti'
+                    }
+                  </div>
+                  <div className={`text-sm mt-1 ${
+                    (stats?.lowStockProducts || 0) > 0
+                      ? 'text-red-700'
+                      : 'text-green-700'
+                  }`}>
+                    {(stats?.lowStockProducts || 0) > 0
+                      ? 'Clicca per gestire le scorte basse →'
+                      : 'Inventario sotto controllo ✓'
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Link>
+        </div>
+
         {/* Alert for Low Stock */}
         {(stats?.lowStockProducts || 0) > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
@@ -256,7 +319,7 @@ const DashboardPage: React.FC = () => {
                 <div className="mt-2 text-sm text-red-700">
                   <p>
                     Ci sono {stats?.lowStockProducts} prodotti con scorte al di sotto del minimo.
-                    <Link to="/products?filter=low-stock" className="ml-2 font-medium underline hover:text-red-600">
+                    <Link to="/products?lowStock=true" className="ml-2 font-medium underline hover:text-red-600">
                       Visualizza prodotti
                     </Link>
                   </p>

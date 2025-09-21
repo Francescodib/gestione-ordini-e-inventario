@@ -31,7 +31,8 @@
       "Bash(timeout:*)",
       "Bash(sudo lsof:*)",
       "Bash(xargs:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(export TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQsImVtYWlsIjoiZGVtb0BkZW1vLmNvbSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1ODQ3MjQxNSwiZXhwIjoxNzU4NTU4ODE1fQ.CAiRIAydROPu5XaTWGcEH8qRF2GjXjfqGZJQZPLJWUU\")"
     ],
     "deny": [],
     "ask": []

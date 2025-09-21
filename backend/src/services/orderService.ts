@@ -636,14 +636,16 @@ export class OrderService {
         }
       }
 
-      // Prepare update data (exclude items as they're handled separately)
-      const { items, ...updatePayload } = {
+      // Prepare update data (exclude items and userId as they're handled separately)
+      // IMPORTANT: Never allow userId to be updated - preserve original customer
+      const { items, userId, ...updatePayload } = {
         ...updateData,
         updatedAt: new Date(),
       };
 
-      // Capture original status before update for notifications
+      // Capture original statuses before update for notifications
       const originalStatus = existingOrder.status;
+      const originalPaymentStatus = existingOrder.paymentStatus;
 
       // Update the order
       logger.info('About to update order', { orderId: id, updatePayload, oldStatus: existingOrder.status });
@@ -700,13 +702,23 @@ export class OrderService {
       });
 
       // Send real-time notification for status changes
-      if (updateData.status && updateData.status !== originalStatus) {
-        const notificationService = getNotificationService();
-        if (notificationService) {
+      const notificationService = getNotificationService();
+      if (notificationService) {
+        if (updateData.status && updateData.status !== originalStatus) {
           await notificationService.notifyOrderStatusChange(
             order!.id,
             originalStatus,
             updateData.status,
+            order!.userId
+          );
+        }
+
+        // Send notification for payment status changes
+        if (updateData.paymentStatus && updateData.paymentStatus !== originalPaymentStatus) {
+          await notificationService.notifyPaymentStatusChange(
+            order!.id,
+            originalPaymentStatus,
+            updateData.paymentStatus,
             order!.userId
           );
         }

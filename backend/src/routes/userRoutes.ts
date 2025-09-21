@@ -6,7 +6,7 @@
 import express, { Request, Response } from 'express';
 import { UserService, CreateUserRequest, UpdateUserRequest, LoginRequest, UserResponse } from '../services/userService';
 import { AuthService } from '../services/authService';
-import { verifyToken } from '../middleware/auth';
+import { verifyToken, requireAdmin, requireUserCreation } from '../middleware/auth';
 import { logger } from '../config/logger';
 import { 
   validateBody, 
@@ -321,6 +321,11 @@ router.get('/me', verifyToken, async (req: Request, res: Response) => {
       isActive: user.isActive,
       emailVerified: user.emailVerified,
       lastLogin: user.lastLogin,
+      phone: user.phone,
+      streetAddress: user.streetAddress,
+      city: user.city,
+      postalCode: user.postalCode,
+      country: user.country,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };
@@ -342,8 +347,9 @@ router.get('/me', verifyToken, async (req: Request, res: Response) => {
  * GET /api/users
  * Recupero di tutti gli utenti (con paginazione opzionale)
  */
-router.get('/', 
+router.get('/',
   verifyToken,
+  requireAdmin,
   validateQuery(paginationSchema, { allowUnknown: true }),
   async (req: Request, res: Response) => {
   try {
@@ -370,6 +376,11 @@ router.get('/',
       isActive: user.isActive,
       emailVerified: user.emailVerified,
       lastLogin: user.lastLogin,
+      phone: user.phone,
+      streetAddress: user.streetAddress,
+      city: user.city,
+      postalCode: user.postalCode,
+      country: user.country,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     }));
@@ -392,7 +403,7 @@ router.get('/',
  * GET /api/users/search
  * Ricerca utenti per nome o email
  */
-router.get('/search', verifyToken, async (req: Request, res: Response) => {
+router.get('/search', verifyToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { q } = req.query;
     
@@ -404,7 +415,7 @@ router.get('/search', verifyToken, async (req: Request, res: Response) => {
     }
 
     const users = await UserService.searchUsers(q);
-    
+
     const userResponses = users.map(user => ({
       id: user.id,
       username: user.username,
@@ -414,6 +425,11 @@ router.get('/search', verifyToken, async (req: Request, res: Response) => {
       role: user.role,
       isActive: user.isActive,
       emailVerified: user.emailVerified,
+      phone: user.phone,
+      streetAddress: user.streetAddress,
+      city: user.city,
+      postalCode: user.postalCode,
+      country: user.country,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     }));
@@ -436,7 +452,7 @@ router.get('/search', verifyToken, async (req: Request, res: Response) => {
  * GET /api/users/stats
  * Statistiche degli utenti
  */
-router.get('/stats', verifyToken, async (req: Request, res: Response) => {
+router.get('/stats', verifyToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const stats = await UserService.getUserStats();
     
@@ -454,6 +470,69 @@ router.get('/stats', verifyToken, async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/users
+ * Create new user (Admin can create all types, Manager can create clients only)
+ */
+router.post('/',
+  verifyToken,
+  requireUserCreation,
+  sanitizeInput(),
+  validateContentType(),
+  validateBody(createUserSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const userData: CreateUserRequest = req.body;
+
+      // Check if required fields for CLIENT role are provided when creating a client
+      if (userData.role === 'CLIENT' || !userData.role) {
+        if (!userData.streetAddress || !userData.city || !userData.postalCode || !userData.country) {
+          return res.status(400).json({
+            success: false,
+            message: 'Address fields (streetAddress, city, postalCode, country) are required for client accounts'
+          });
+        }
+      }
+
+      const newUser = await UserService.createUser(userData);
+
+      const userResponse = {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        role: newUser.role,
+        isActive: newUser.isActive,
+        emailVerified: newUser.emailVerified,
+        phone: newUser.phone,
+        streetAddress: newUser.streetAddress,
+        city: newUser.city,
+        postalCode: newUser.postalCode,
+        country: newUser.country,
+        createdAt: newUser.createdAt
+      };
+
+      res.status(201).json({
+        success: true,
+        message: 'User created successfully',
+        data: userResponse
+      });
+    } catch (error: any) {
+      logger.error('Error creating user', {
+        error: error.message,
+        userData: { ...req.body, password: '[REDACTED]' }
+      });
+
+      res.status(500).json({
+        success: false,
+        message: 'Error creating user',
+        error: error.message
+      });
+    }
+  }
+);
+
+/**
  * GET /api/users/:id
  * Recupero di un utente specifico per ID
  */
@@ -463,11 +542,21 @@ router.get('/:id',
   async (req: Request, res: Response) => {
   try {
     const userId = parseIntId(req.params.id);
+    const currentUser = req.user;
+
+    // Check permissions: clients can only access their own data
+    if (currentUser?.role === 'CLIENT' && currentUser.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Clients can only access their own profile.'
+      });
+    }
+
     const user = await UserService.getUserById(userId);
     if (!user) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'User not found' 
+        message: 'User not found'
       });
     }
 
@@ -481,6 +570,11 @@ router.get('/:id',
       isActive: user.isActive,
       emailVerified: user.emailVerified,
       lastLogin: user.lastLogin,
+      phone: user.phone,
+      streetAddress: user.streetAddress,
+      city: user.city,
+      postalCode: user.postalCode,
+      country: user.country,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };

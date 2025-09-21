@@ -113,7 +113,7 @@ export async function seedTestDatabase(): Promise<{
       password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LFTFx8/tqB5U5.Xn.',
       firstName: 'Test',
       lastName: 'User',
-      role: UserRole.USER
+      role: UserRole.CLIENT
     });
     users.push(regularUser);
     
@@ -264,7 +264,7 @@ export async function clearTestDatabase(): Promise<void> {
 /**
  * Generate test JWT token
  */
-export function generateTestToken(userId: string, role: string = 'USER'): string {
+export function generateTestToken(userId: string, role: string = 'CLIENT'): string {
   const JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key';
   
   return jwt.sign(

@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (username: string, firstName: string, lastName: string, email: string, password: string, role: 'USER' | 'ADMIN' | 'MANAGER' = 'USER') => {
+  const register = async (username: string, firstName: string, lastName: string, email: string, password: string, role: 'CLIENT' | 'ADMIN' | 'MANAGER' = 'CLIENT', addressData?: { phone?: string; streetAddress?: string; city?: string; postalCode?: string; country?: string }) => {
     try {
       setLoading(true);
 
@@ -58,7 +58,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email,
         password,
         confirmPassword: password,
-        role
+        role,
+        ...(addressData && {
+          phone: addressData.phone || '',
+          streetAddress: addressData.streetAddress || '',
+          city: addressData.city || '',
+          postalCode: addressData.postalCode || '',
+          country: addressData.country || ''
+        })
       };
       
       console.log('Sending registration data:', registrationData);
@@ -89,6 +96,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem('user');
   };
 
+  // Role-based helper functions
+  const isAdmin = (): boolean => {
+    return user?.role === 'ADMIN';
+  };
+
+  const isManager = (): boolean => {
+    return user?.role === 'MANAGER';
+  };
+
+  const isClient = (): boolean => {
+    return user?.role === 'CLIENT';
+  };
+
+  const canManageUsers = (): boolean => {
+    return user?.role === 'ADMIN';
+  };
+
+  const canManageOrders = (): boolean => {
+    return user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  };
+
+  const canCreateClients = (): boolean => {
+    return user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  };
+
   const value: AuthContextType = {
     user,
     token,
@@ -96,6 +128,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     loading,
+    isAdmin,
+    isManager,
+    isClient,
+    canManageUsers,
+    canManageOrders,
+    canCreateClients,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

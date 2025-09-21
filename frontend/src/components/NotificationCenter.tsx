@@ -19,14 +19,15 @@ import { useNotifications } from '../hooks/useNotifications';
 
 // Define NotificationPayload locally to avoid import issues
 interface NotificationPayload {
-  type: 'ORDER_STATUS_CHANGE' | 'ORDER_CREATED' | 'INVENTORY_LOW' | 'SYSTEM_ALERT';
+  type: 'ORDER_STATUS_CHANGE' | 'ORDER_CREATED' | 'PAYMENT_STATUS_CHANGE' | 'INVENTORY_LOW' | 'STOCK_ALERT' | 'SYSTEM_ALERT';
   title: string;
   message: string;
   data?: any;
   userId?: number;
-  userRole?: 'USER' | 'MANAGER' | 'ADMIN';
+  userRole?: 'CLIENT' | 'MANAGER' | 'ADMIN';
   timestamp: Date | string;
   orderId?: number;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
 }
 
 interface NotificationCenterProps {
@@ -59,7 +60,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ token, classNam
         return <Package className={`${iconClass} text-blue-500`} />;
       case 'ORDER_CREATED':
         return <ShoppingCart className={`${iconClass} text-green-500`} />;
+      case 'PAYMENT_STATUS_CHANGE':
+        return <CheckCircle className={`${iconClass} text-purple-500`} />;
       case 'INVENTORY_LOW':
+      case 'STOCK_ALERT':
         return <AlertCircle className={`${iconClass} text-orange-500`} />;
       case 'SYSTEM_ALERT':
         return <AlertCircle className={`${iconClass} text-red-500`} />;
@@ -68,13 +72,24 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ token, classNam
     }
   };
 
-  const getNotificationColor = (type: NotificationPayload['type']) => {
+  const getNotificationColor = (type: NotificationPayload['type'], priority?: string) => {
+    // Priority override for critical and high priority notifications
+    if (priority === 'critical') {
+      return 'border-l-red-600 bg-red-100 border-red-300';
+    }
+    if (priority === 'high') {
+      return 'border-l-orange-600 bg-orange-100 border-orange-300';
+    }
+
     switch (type) {
       case 'ORDER_STATUS_CHANGE':
         return 'border-l-blue-500 bg-blue-50';
       case 'ORDER_CREATED':
         return 'border-l-green-500 bg-green-50';
+      case 'PAYMENT_STATUS_CHANGE':
+        return 'border-l-purple-500 bg-purple-50';
       case 'INVENTORY_LOW':
+      case 'STOCK_ALERT':
         return 'border-l-orange-500 bg-orange-50';
       case 'SYSTEM_ALERT':
         return 'border-l-red-500 bg-red-50';
@@ -103,11 +118,14 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ token, classNam
     }
 
     // Handle navigation based on notification type
-    if (notification.type === 'ORDER_STATUS_CHANGE' || notification.type === 'ORDER_CREATED') {
+    if (notification.type === 'ORDER_STATUS_CHANGE' || notification.type === 'ORDER_CREATED' || notification.type === 'PAYMENT_STATUS_CHANGE') {
       if (notification.orderId) {
         // Navigate to order detail page
         window.location.href = `/orders/${notification.orderId}`;
       }
+    } else if (notification.type === 'INVENTORY_LOW' || notification.type === 'STOCK_ALERT') {
+      // Navigate to products page with low stock filter
+      window.location.href = '/products?lowStock=true';
     }
   };
 
@@ -216,9 +234,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ token, classNam
                       key={notification.id}
                       onClick={() => handleNotificationClick(notification)}
                       className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors border-l-4 ${
-                        getNotificationColor(notification.type)
+                        getNotificationColor(notification.type, notification.priority)
                       } ${
-                        !notification.read ? 'bg-blue-50' : 'bg-white'
+                        !notification.read && !notification.priority ? 'bg-blue-50' :
+                        !notification.read ? '' : 'bg-white'
                       }`}
                     >
                       <div className="flex items-start justify-between">
@@ -234,6 +253,15 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ token, classNam
                               }`}>
                                 {notification.title}
                               </h4>
+                              {notification.priority && ['high', 'critical'].includes(notification.priority) && (
+                                <span className={`px-1.5 py-0.5 text-xs font-semibold rounded ${
+                                  notification.priority === 'critical'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-orange-100 text-orange-800'
+                                }`}>
+                                  {notification.priority === 'critical' ? 'CRITICO' : 'ALTO'}
+                                </span>
+                              )}
                               {!notification.read && (
                                 <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
                               )}

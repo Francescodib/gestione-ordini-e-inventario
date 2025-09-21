@@ -7,9 +7,9 @@ import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../config/sequelize';
 
 export enum UserRole {
-  USER = 'USER',
-  ADMIN = 'ADMIN',
-  MANAGER = 'MANAGER'
+  CLIENT = 'CLIENT',
+  MANAGER = 'MANAGER',
+  ADMIN = 'ADMIN'
 }
 
 export interface UserAttributes {
@@ -24,11 +24,16 @@ export interface UserAttributes {
   emailVerified: boolean;
   avatar?: string;
   lastLogin?: Date;
+  phone?: string;
+  streetAddress?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'role' | 'isActive' | 'emailVerified' | 'avatar' | 'lastLogin' | 'createdAt' | 'updatedAt'> {}
+export interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'role' | 'isActive' | 'emailVerified' | 'avatar' | 'lastLogin' | 'phone' | 'streetAddress' | 'city' | 'postalCode' | 'country' | 'createdAt' | 'updatedAt'> {}
 
 export class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
   declare id: number;
@@ -42,12 +47,55 @@ export class User extends Model<UserAttributes, UserCreationAttributes> implemen
   declare emailVerified: boolean;
   declare avatar?: string;
   declare lastLogin?: Date;
+  declare phone?: string;
+  declare streetAddress?: string;
+  declare city?: string;
+  declare postalCode?: string;
+  declare country?: string;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 
   // Helper methods
   public getFullName(): string {
     return `${this.firstName} ${this.lastName}`;
+  }
+
+  public getFullAddress(): string | null {
+    if (!this.streetAddress || !this.city) {
+      return null;
+    }
+    const parts = [this.streetAddress, this.city];
+    if (this.postalCode) parts.push(this.postalCode);
+    if (this.country) parts.push(this.country);
+    return parts.join(', ');
+  }
+
+  public hasCompleteAddress(): boolean {
+    return !!(this.streetAddress && this.city && this.postalCode && this.country);
+  }
+
+  public isClient(): boolean {
+    return this.role === UserRole.CLIENT;
+  }
+
+  public isManager(): boolean {
+    return this.role === UserRole.MANAGER;
+  }
+
+  public isAdmin(): boolean {
+    return this.role === UserRole.ADMIN;
+  }
+
+  public canManageUsers(): boolean {
+    return this.role === UserRole.ADMIN;
+  }
+
+  public canManageOrders(): boolean {
+    return this.role === UserRole.ADMIN || this.role === UserRole.MANAGER;
+  }
+
+  public canCreateClients(): boolean {
+    return this.role === UserRole.ADMIN || this.role === UserRole.MANAGER;
   }
 }
 
@@ -98,7 +146,7 @@ User.init(
     role: {
       type: DataTypes.ENUM(...Object.values(UserRole)),
       allowNull: false,
-      defaultValue: UserRole.USER
+      defaultValue: UserRole.CLIENT
     },
     isActive: {
       type: DataTypes.BOOLEAN,
@@ -117,6 +165,41 @@ User.init(
     lastLogin: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    phone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        len: [1, 20]
+      }
+    },
+    streetAddress: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        len: [1, 255]
+      }
+    },
+    city: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        len: [1, 100]
+      }
+    },
+    postalCode: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        len: [1, 20]
+      }
+    },
+    country: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        len: [1, 100]
+      }
     },
     createdAt: {
       type: DataTypes.DATE,

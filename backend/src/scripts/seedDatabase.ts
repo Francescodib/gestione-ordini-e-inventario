@@ -39,7 +39,7 @@ const seedDatabase = async (): Promise<SeedStats> => {
         password: hashedPassword,
         firstName: 'Sarah',
         lastName: 'Wilson',
-        role: UserRole.USER,
+        role: UserRole.CLIENT,
         isActive: true,
         emailVerified: true
       },
@@ -49,7 +49,7 @@ const seedDatabase = async (): Promise<SeedStats> => {
         password: hashedPassword,
         firstName: 'Mike',
         lastName: 'Johnson',
-        role: UserRole.USER,
+        role: UserRole.CLIENT,
         isActive: true,
         emailVerified: false
       },

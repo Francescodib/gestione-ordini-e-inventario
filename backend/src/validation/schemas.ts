@@ -87,6 +87,64 @@ export const createUserSchema = Joi.object({
     .optional()
     .messages({
       'any.only': `Role must be one of: ${Object.values(UserRole).join(', ')}`
+    }),
+
+  phone: Joi.string()
+    .trim()
+    .pattern(new RegExp('^[+]?[0-9\\s\\-()]+$'))
+    .min(5)
+    .max(20)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Phone number format is invalid',
+      'string.min': 'Phone number must be at least 5 characters long',
+      'string.max': 'Phone number cannot exceed 20 characters'
+    }),
+
+  streetAddress: Joi.string()
+    .trim()
+    .min(5)
+    .max(255)
+    .optional()
+    .messages({
+      'string.min': 'Street address must be at least 5 characters long',
+      'string.max': 'Street address cannot exceed 255 characters'
+    }),
+
+  city: Joi.string()
+    .trim()
+    .min(2)
+    .max(100)
+    .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s\\-\']+$'))
+    .optional()
+    .messages({
+      'string.min': 'City must be at least 2 characters long',
+      'string.max': 'City cannot exceed 100 characters',
+      'string.pattern.base': 'City can only contain letters, spaces, hyphens, and apostrophes'
+    }),
+
+  postalCode: Joi.string()
+    .trim()
+    .pattern(new RegExp('^[0-9A-Za-z\\s\\-]+$'))
+    .min(3)
+    .max(20)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Postal code format is invalid',
+      'string.min': 'Postal code must be at least 3 characters long',
+      'string.max': 'Postal code cannot exceed 20 characters'
+    }),
+
+  country: Joi.string()
+    .trim()
+    .min(2)
+    .max(100)
+    .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s]+$'))
+    .optional()
+    .messages({
+      'string.min': 'Country must be at least 2 characters long',
+      'string.max': 'Country cannot exceed 100 characters',
+      'string.pattern.base': 'Country can only contain letters and spaces'
     })
 });
 
@@ -147,7 +205,65 @@ export const updateUserSchema = Joi.object({
     .optional(),
 
   isActive: Joi.boolean()
+    .optional(),
+
+  phone: Joi.string()
+    .trim()
+    .pattern(new RegExp('^[+]?[0-9\\s\\-()]+$'))
+    .min(5)
+    .max(20)
     .optional()
+    .messages({
+      'string.pattern.base': 'Phone number format is invalid',
+      'string.min': 'Phone number must be at least 5 characters long',
+      'string.max': 'Phone number cannot exceed 20 characters'
+    }),
+
+  streetAddress: Joi.string()
+    .trim()
+    .min(5)
+    .max(255)
+    .optional()
+    .messages({
+      'string.min': 'Street address must be at least 5 characters long',
+      'string.max': 'Street address cannot exceed 255 characters'
+    }),
+
+  city: Joi.string()
+    .trim()
+    .min(2)
+    .max(100)
+    .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s\\-\']+$'))
+    .optional()
+    .messages({
+      'string.min': 'City must be at least 2 characters long',
+      'string.max': 'City cannot exceed 100 characters',
+      'string.pattern.base': 'City can only contain letters, spaces, hyphens, and apostrophes'
+    }),
+
+  postalCode: Joi.string()
+    .trim()
+    .pattern(new RegExp('^[0-9A-Za-z\\s\\-]+$'))
+    .min(3)
+    .max(20)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Postal code format is invalid',
+      'string.min': 'Postal code must be at least 3 characters long',
+      'string.max': 'Postal code cannot exceed 20 characters'
+    }),
+
+  country: Joi.string()
+    .trim()
+    .min(2)
+    .max(100)
+    .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s]+$'))
+    .optional()
+    .messages({
+      'string.min': 'Country must be at least 2 characters long',
+      'string.max': 'Country cannot exceed 100 characters',
+      'string.pattern.base': 'Country can only contain letters and spaces'
+    })
 });
 
 /**

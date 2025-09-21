@@ -166,6 +166,45 @@ router.get('/search',
   }
 );
 
+/**
+ * GET /api/products/low-stock
+ * Get products with low stock (Admin/Manager only)
+ */
+router.get('/low-stock',
+  verifyToken,
+  async (req: Request, res: Response) => {
+    try {
+      // Check if user has permission to view inventory
+      if (req.user?.role !== 'ADMIN' && req.user?.role !== 'MANAGER') {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Admin or Manager role required.'
+        });
+      }
+
+      const products = await ProductService.getLowStockProducts();
+
+      res.json({
+        success: true,
+        data: products,
+        count: products.length,
+        message: products.length === 0 ? 'No products with low stock' : `${products.length} products have low stock`
+      });
+    } catch (error: any) {
+      logger.error('Error fetching low stock products', {
+        error: error.message,
+        userId: req.user?.userId
+      });
+
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching low stock products',
+        error: error.message
+      });
+    }
+  }
+);
+
 // ==========================================
 // ANALYTICS AND REPORTING ROUTES (must come before /:id)
 // ==========================================

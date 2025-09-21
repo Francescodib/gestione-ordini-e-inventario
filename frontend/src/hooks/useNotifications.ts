@@ -12,14 +12,15 @@ import {
 
 // Define interfaces locally to avoid import issues
 interface NotificationPayload {
-  type: 'ORDER_STATUS_CHANGE' | 'ORDER_CREATED' | 'INVENTORY_LOW' | 'SYSTEM_ALERT';
+  type: 'ORDER_STATUS_CHANGE' | 'ORDER_CREATED' | 'PAYMENT_STATUS_CHANGE' | 'INVENTORY_LOW' | 'STOCK_ALERT' | 'SYSTEM_ALERT';
   title: string;
   message: string;
   data?: any;
   userId?: number;
-  userRole?: 'USER' | 'MANAGER' | 'ADMIN';
+  userRole?: 'CLIENT' | 'MANAGER' | 'ADMIN';
   timestamp: Date | string;
   orderId?: number;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
 }
 
 interface NotificationHandlers {

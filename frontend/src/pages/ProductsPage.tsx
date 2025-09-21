@@ -20,6 +20,7 @@ const ProductsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search')?.trim() || '');
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoryId') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [lowStockFilter, setLowStockFilter] = useState(searchParams.get('lowStock') === 'true');
   const [showFilters, setShowFilters] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -35,11 +36,12 @@ const ProductsPage: React.FC = () => {
       const searchValue = searchParams.get('search');
       const categoryValue = searchParams.get('categoryId');
       const statusValue = searchParams.get('status');
+      const lowStockValue = searchParams.get('lowStock') === 'true';
       const pageParam = searchParams.get('page');
       const limitParam = searchParams.get('limit');
 
       // Determine if this is a search operation
-      const isSearchOperation = !!(searchValue || categoryValue || statusValue);
+      const isSearchOperation = !!(searchValue || categoryValue || statusValue || lowStockValue);
       setHasSearched(isSearchOperation);
 
       let categoryId: number | undefined;
@@ -57,6 +59,7 @@ const ProductsPage: React.FC = () => {
         search: searchValue?.trim() ? searchValue.trim() : undefined,
         categoryId,
         status: statusValue || undefined,
+        lowStock: lowStockValue || undefined,
         page: Number.isNaN(pageNumber) ? 1 : pageNumber,
         limit: Number.isNaN(limitNumber) ? 50 : limitNumber
       };
@@ -104,7 +107,13 @@ const ProductsPage: React.FC = () => {
     } else {
       newParams.delete('status');
     }
-    
+
+    if (lowStockFilter) {
+      newParams.set('lowStock', 'true');
+    } else {
+      newParams.delete('lowStock');
+    }
+
     newParams.set('page', '1'); // Reset to first page
     setSearchParams(newParams);
   };
@@ -113,6 +122,7 @@ const ProductsPage: React.FC = () => {
     setSearchQuery('');
     setSelectedCategory('');
     setStatusFilter('');
+    setLowStockFilter(false);
     setHasSearched(false);
     setSearchParams({});
   };
@@ -320,7 +330,7 @@ const ProductsPage: React.FC = () => {
 
             {showFilters && (
               <div className="pt-4 border-t border-gray-200">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Categoria
@@ -354,10 +364,24 @@ const ProductsPage: React.FC = () => {
                       <option value="DISCONTINUED">Discontinuo</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Filtri Avanzati
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={lowStockFilter}
+                        onChange={(e) => setLowStockFilter(e.target.checked)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Solo prodotti a scorte basse</span>
+                    </label>
+                  </div>
                   <div className="flex items-end">
-                    <Button 
-                      type="button" 
-                      variant="secondary" 
+                    <Button
+                      type="button"
+                      variant="secondary"
                       onClick={clearFilters}
                       fullWidth
                     >
@@ -377,6 +401,7 @@ const ProductsPage: React.FC = () => {
             {searchQuery && ` per "${searchQuery}"`}
             {selectedCategory && ` nella categoria selezionata`}
             {statusFilter && ` con stato "${getStatusText(statusFilter)}"`}
+            {lowStockFilter && ` con scorte basse`}
           </div>
         )}
 

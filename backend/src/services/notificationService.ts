@@ -10,21 +10,23 @@ import { logger } from '../config/logger';
 import { User } from '../models';
 
 export interface NotificationPayload {
-  type: 'ORDER_STATUS_CHANGE' | 'ORDER_CREATED' | 'INVENTORY_LOW' | 'SYSTEM_ALERT';
+  type: 'ORDER_STATUS_CHANGE' | 'ORDER_CREATED' | 'PAYMENT_STATUS_CHANGE' | 'INVENTORY_LOW' | 'STOCK_ALERT' | 'SYSTEM_ALERT';
   title: string;
   message: string;
   data?: any;
   userId?: number;
-  userRole?: 'USER' | 'MANAGER' | 'ADMIN';
+  userRole?: 'CLIENT' | 'MANAGER' | 'ADMIN';
   timestamp: Date;
   orderId?: number;
+  productId?: number;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
 }
 
 export interface AuthenticatedSocket extends Socket {
   user?: {
     id: number;
     email: string;
-    role: 'USER' | 'MANAGER' | 'ADMIN';
+    role: 'CLIENT' | 'MANAGER' | 'ADMIN';
   };
 }
 
@@ -200,8 +202,8 @@ export class NotificationService {
 
     // Define room access rules
     const allowedRooms = {
-      USER: ['general', `user:${user}`, 'role:USER'],
-      MANAGER: ['general', `user:${user}`, 'role:USER', 'role:MANAGER', 'orders', 'inventory'],
+      CLIENT: ['general', `user:${user}`, 'role:CLIENT'],
+      MANAGER: ['general', `user:${user}`, 'role:CLIENT', 'role:MANAGER', 'orders', 'inventory'],
       ADMIN: ['*'] // Already handled above
     };
 
@@ -230,7 +232,7 @@ export class NotificationService {
   /**
    * Send notification to users with specific role
    */
-  public notifyRole(role: 'USER' | 'MANAGER' | 'ADMIN', notification: NotificationPayload): void {
+  public notifyRole(role: 'CLIENT' | 'MANAGER' | 'ADMIN', notification: NotificationPayload): void {
     this.io.to(`role:${role}`).emit('notification', notification);
 
     logger.debug('Notification sent to role', {
@@ -389,6 +391,97 @@ export class NotificationService {
     this.io.close();
     this.connectedUsers.clear();
     logger.info('NotificationService shutdown completed');
+  }
+
+  /**
+   * Payment status change notification
+   */
+  public async notifyPaymentStatusChange(orderId: number, oldStatus: string, newStatus: string, userId?: number): Promise<void> {
+    const notification: NotificationPayload = {
+      type: 'PAYMENT_STATUS_CHANGE',
+      title: 'Stato Pagamento Aggiornato',
+      message: `Pagamento ordine #${orderId} cambiato da "${oldStatus}" a "${newStatus}"`,
+      timestamp: new Date(),
+      orderId,
+      priority: newStatus === 'PAID' ? 'medium' : newStatus === 'FAILED' ? 'high' : 'low',
+      data: {
+        orderId,
+        oldStatus,
+        newStatus
+      }
+    };
+
+    // Always notify managers and admins
+    this.notifyManagers(notification);
+
+    // Notify the customer only if they are not already an admin/manager
+    if (userId) {
+      const userSockets = this.connectedUsers.get(userId);
+      let isAdminOrManager = false;
+
+      if (userSockets && userSockets.length > 0) {
+        const userRole = userSockets[0].user?.role;
+        isAdminOrManager = userRole === 'ADMIN' || userRole === 'MANAGER';
+      }
+
+      if (!isAdminOrManager) {
+        this.notifyUser(userId, notification);
+      }
+    }
+  }
+
+  /**
+   * Stock alert notification for products that are low in stock
+   */
+  public notifyStockAlert(productId: number, productName: string, currentStock: number, threshold: number): void {
+    const priority = currentStock === 0 ? 'critical' :
+                    currentStock <= threshold / 2 ? 'high' : 'medium';
+
+    const notification: NotificationPayload = {
+      type: 'STOCK_ALERT',
+      title: currentStock === 0 ? 'Prodotto Esaurito' : 'Scorte Basse',
+      message: currentStock === 0
+        ? `${productName} è esaurito!`
+        : `${productName}: solo ${currentStock} unità rimaste (soglia: ${threshold})`,
+      timestamp: new Date(),
+      productId,
+      priority,
+      data: {
+        productId,
+        productName,
+        currentStock,
+        threshold,
+        isOutOfStock: currentStock === 0
+      }
+    };
+
+    // Only notify managers and admins for stock alerts
+    this.notifyManagers(notification);
+  }
+
+  /**
+   * Get list of products that are currently low in stock
+   */
+  public async notifyLowStockProducts(products: Array<{id: number, name: string, stock: number, minStock?: number}>): Promise<void> {
+    if (products.length === 0) return;
+
+    const notification: NotificationPayload = {
+      type: 'INVENTORY_LOW',
+      title: `${products.length} Prodotti con Scorte Basse`,
+      message: `Ci sono ${products.length} prodotti che necessitano rifornimento`,
+      timestamp: new Date(),
+      priority: 'medium',
+      data: {
+        products: products.map(p => ({
+          id: p.id,
+          name: p.name,
+          stock: p.stock,
+          minStock: p.minStock || 10
+        }))
+      }
+    };
+
+    this.notifyManagers(notification);
   }
 }
 

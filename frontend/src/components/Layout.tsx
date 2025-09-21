@@ -13,7 +13,8 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
-  managerOnly?: boolean;
+  managerOrAdminOnly?: boolean;
+  clientRestricted?: boolean; // true = NOT visible to clients
 }
 
 const HomeIcon = ({ className }: { className?: string }) => (
@@ -81,15 +82,15 @@ const XMarkIcon = ({ className }: { className?: string }) => (
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Prodotti', href: '/products', icon: CubeIcon },
-  { name: 'Categorie', href: '/categories', icon: ShoppingBagIcon },
+  { name: 'Categorie', href: '/categories', icon: ShoppingBagIcon, clientRestricted: true },
   { name: 'Ordini', href: '/orders', icon: ClipboardDocumentListIcon },
   { name: 'Utenti', href: '/users', icon: UsersIcon, adminOnly: true },
-  { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, managerOnly: true },
+  { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, managerOrAdminOnly: true },
   { name: 'Sistema', href: '/system', icon: Cog8ToothIcon, adminOnly: true },
 ];
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin, isClient, canManageUsers, canManageOrders } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -104,8 +105,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const filteredNavigation = navigation.filter(item => {
-    if (item.adminOnly && user?.role !== 'ADMIN') return false;
-    if (item.managerOnly && !['ADMIN', 'MANAGER'].includes(user?.role || '')) return false;
+    if (item.adminOnly && !isAdmin()) return false;
+    if (item.managerOrAdminOnly && !canManageOrders()) return false;
+    if (item.clientRestricted && isClient()) return false;
     return true;
   });
 

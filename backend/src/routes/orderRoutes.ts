@@ -5,7 +5,7 @@
 
 import express, { Request, Response } from 'express';
 import { OrderService, CreateOrderRequest, UpdateOrderRequest, OrderSearchOptions } from '../services/orderService';
-import { verifyToken } from '../middleware/auth';
+import { verifyToken, requireManagerOrAdmin, requireAdmin } from '../middleware/auth';
 import { logger, logUtils } from '../config/logger';
 import {
   validateBody,
@@ -47,15 +47,9 @@ const parseIntId = (id: string): number => {
  */
 router.get('/stats',
   verifyToken,
+  requireManagerOrAdmin,
   async (req: Request, res: Response) => {
     try {
-      // Check if user has permission to view analytics
-      if (req.user?.role !== 'ADMIN' && req.user?.role !== 'MANAGER') {
-        return res.status(403).json({
-          success: false,
-          message: 'Insufficient permissions to view order analytics'
-        });
-      }
 
       const stats = await OrderService.getOrderStats();
 
@@ -84,6 +78,7 @@ router.get('/stats',
  */
 router.get('/reports/revenue',
   verifyToken,
+  requireManagerOrAdmin,
   validateQuery(Joi.object({
     startDate: Joi.date().optional(),
     endDate: Joi.date().optional(),
@@ -91,13 +86,6 @@ router.get('/reports/revenue',
   })),
   async (req: Request, res: Response) => {
     try {
-      // Check if user has permission to view reports
-      if (req.user?.role !== 'ADMIN' && req.user?.role !== 'MANAGER') {
-        return res.status(403).json({
-          success: false,
-          message: 'Insufficient permissions to view reports'
-        });
-      }
 
       // For now, return basic stats
       // In a full implementation, you'd create specific revenue reporting logic
@@ -133,15 +121,9 @@ router.get('/reports/revenue',
  */
 router.get('/reports/products',
   verifyToken,
+  requireManagerOrAdmin,
   async (req: Request, res: Response) => {
     try {
-      // Check if user has permission to view reports
-      if (req.user?.role !== 'ADMIN' && req.user?.role !== 'MANAGER') {
-        return res.status(403).json({
-          success: false,
-          message: 'Insufficient permissions to view reports'
-        });
-      }
 
       const stats = await OrderService.getOrderStats();
 
@@ -452,19 +434,13 @@ router.get('/:id',
  */
 router.put('/:id/status',
   verifyToken,
+  requireManagerOrAdmin,
   validateId(),
   sanitizeInput(),
   validateContentType(),
   validateBody(updateOrderStatusSchema),
   async (req: Request, res: Response) => {
     try {
-      // Check if user has permission to update orders
-      if (req.user?.role !== 'ADMIN' && req.user?.role !== 'MANAGER') {
-        return res.status(403).json({
-          success: false,
-          message: 'Insufficient permissions to update order status'
-        });
-      }
 
       const updateData: UpdateOrderRequest = req.body;
       const userId = req.user?.userId;
@@ -501,19 +477,13 @@ router.put('/:id/status',
  */
 router.put('/:id',
   verifyToken,
+  requireManagerOrAdmin,
   validateId(),
   sanitizeInput(),
   validateContentType(),
   validateBody(updateOrderSchema),
   async (req: Request, res: Response) => {
     try {
-      // Check if user has permission to update orders
-      if (req.user?.role !== 'ADMIN' && req.user?.role !== 'MANAGER') {
-        return res.status(403).json({
-          success: false,
-          message: 'Insufficient permissions to update order'
-        });
-      }
 
       const updateData: UpdateOrderRequest = req.body;
       const userId = req.user?.userId;
@@ -616,6 +586,7 @@ router.post('/:id/cancel',
  */
 router.post('/bulk/update-status',
   verifyToken,
+  requireAdmin,
   validateBody(Joi.object({
     orderIds: Joi.array().items(Joi.string()).min(1).required(),
     status: Joi.string().valid(...Object.values(OrderStatus)).required(),
@@ -623,13 +594,6 @@ router.post('/bulk/update-status',
   })),
   async (req: Request, res: Response) => {
     try {
-      // Check if user has admin permission
-      if (req.user?.role !== 'ADMIN') {
-        return res.status(403).json({
-          success: false,
-          message: 'Insufficient permissions for bulk operations'
-        });
-      }
 
       const { orderIds, status, paymentStatus } = req.body;
       const userId = req.user?.userId;
@@ -684,19 +648,11 @@ router.post('/bulk/update-status',
  */
 router.delete('/:id',
   verifyToken,
+  requireAdmin,
   validateId(),
   async (req: Request, res: Response) => {
     try {
       logger.info('DELETE order request received', { orderId: req.params.id });
-
-      // Check if user is admin
-      if (req.user?.role !== 'ADMIN') {
-        logger.warn('Non-admin user attempted order deletion', { userId: req.user?.userId, role: req.user?.role });
-        return res.status(403).json({
-          success: false,
-          message: 'Admin access required to delete orders'
-        });
-      }
 
       const orderId = parseIntId(req.params.id);
       const adminUserId = req.user.userId;

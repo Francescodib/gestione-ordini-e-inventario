@@ -29,7 +29,7 @@ async function testDatabase() {
       password: 'password123',
       firstName: 'Test',
       lastName: 'User',
-      role: UserRole.USER
+      role: UserRole.CLIENT
     });
     console.log('✅ User created:', savedUser.username, 'ID:', savedUser.id);
 

@@ -71,7 +71,7 @@ export class UserService {
         password: hashedPassword,
         firstName: userData.firstName.trim(),
         lastName: userData.lastName.trim(),
-        role: userData.role || UserRole.USER
+        role: userData.role || UserRole.CLIENT
       });
 
       return user;

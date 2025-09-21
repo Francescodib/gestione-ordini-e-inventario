@@ -38,7 +38,7 @@ async function seedUsers() {
       password: await bcrypt.hash('user123', 12),
       firstName: 'Giulia',
       lastName: 'Rossi',
-      role: UserRole.USER,
+      role: UserRole.CLIENT,
       emailVerified: true,
     },
     {
@@ -47,7 +47,7 @@ async function seedUsers() {
       password: await bcrypt.hash('user123', 12),
       firstName: 'Luca',
       lastName: 'Bianchi',
-      role: UserRole.USER,
+      role: UserRole.CLIENT,
       emailVerified: false,
     },
     {
@@ -56,7 +56,7 @@ async function seedUsers() {
       password: await bcrypt.hash('customer123', 12),
       firstName: 'Anna',
       lastName: 'Verdi',
-      role: UserRole.USER,
+      role: UserRole.CLIENT,
       emailVerified: true,
     }
   ];
@@ -353,7 +353,7 @@ async function seedOrders() {
   console.log('🛒 Seeding orders...');
   
   // Ottieni utenti e prodotti
-  const users = await User.findAll({ where: { role: UserRole.USER } });
+  const users = await User.findAll({ where: { role: UserRole.CLIENT } });
   const products = await Product.findAll({ where: { stock: { [Op.gt]: 0 } } });
   
   if (users.length === 0 || products.length === 0) {

@@ -20,7 +20,12 @@ export interface User extends AuditFields {
   emailVerified: boolean;
   avatar?: string;
   lastLogin?: Date;
-  
+  phone?: string;
+  streetAddress?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+
   // Profile information
   profile?: UserProfile;
 }
@@ -72,6 +77,11 @@ export interface PublicUser {
   emailVerified: boolean;
   avatar?: string;
   lastLogin?: Date;
+  phone?: string;
+  streetAddress?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
   createdAt: Date;
 }
 
@@ -156,6 +166,11 @@ export interface UpdateUserRequest {
   lastName?: string;
   role?: UserRole;
   isActive?: boolean;
+  phone?: string;
+  streetAddress?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
   profile?: Partial<UserProfile>;
 }
 
@@ -171,6 +186,11 @@ export interface CreateUserRequest {
   role?: UserRole;
   isActive?: boolean;
   emailVerified?: boolean;
+  phone?: string;
+  streetAddress?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
 }
 
 /**
@@ -307,7 +327,7 @@ export interface UserPermissions {
 export interface RolePermissions {
   [UserRole.ADMIN]: UserPermissions;
   [UserRole.MANAGER]: UserPermissions;
-  [UserRole.USER]: UserPermissions;
+  [UserRole.CLIENT]: UserPermissions;
 }
 
 /**

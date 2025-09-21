@@ -33,7 +33,7 @@ export class ApiTestHelper {
     // Generate tokens for different user roles
     this.tokens.set('admin', generateTestToken(this.testData.users[0].id, UserRole.ADMIN));
     this.tokens.set('manager', generateTestToken(this.testData.users[1].id, UserRole.MANAGER));
-    this.tokens.set('user', generateTestToken(this.testData.users[2].id, UserRole.USER));
+    this.tokens.set('user', generateTestToken(this.testData.users[2].id, UserRole.CLIENT));
   }
 
   /**
@@ -215,7 +215,7 @@ export class MockDataGenerator {
       password: 'Password123!',
       firstName: 'Test',
       lastName: 'User',
-      role: UserRole.USER,
+      role: UserRole.CLIENT,
       ...overrides
     };
   }

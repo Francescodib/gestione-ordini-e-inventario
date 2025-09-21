@@ -12,7 +12,12 @@ const RegisterPage: React.FC = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'USER' as 'USER' | 'ADMIN' | 'MANAGER'
+    role: 'CLIENT' as 'CLIENT' | 'ADMIN' | 'MANAGER',
+    phone: '',
+    streetAddress: '',
+    city: '',
+    postalCode: '',
+    country: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -59,7 +64,15 @@ const RegisterPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await register(formData.username, formData.firstName, formData.lastName, formData.email, formData.password, formData.role);
+      const addressData = formData.role === 'CLIENT' ? {
+        phone: formData.phone,
+        streetAddress: formData.streetAddress,
+        city: formData.city,
+        postalCode: formData.postalCode,
+        country: formData.country
+      } : undefined;
+
+      await register(formData.username, formData.firstName, formData.lastName, formData.email, formData.password, formData.role, addressData);
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Registration error details:', err.response?.data);
@@ -173,11 +186,97 @@ const RegisterPage: React.FC = () => {
                 value={formData.role}
                 onChange={handleChange}
               >
-                <option value="USER">Utente</option>
+                <option value="CLIENT">Cliente</option>
                 <option value="MANAGER">Manager</option>
                 <option value="ADMIN">Amministratore</option>
               </select>
             </div>
+
+            {/* Address fields - Only for CLIENT users */}
+            {formData.role === 'CLIENT' && (
+              <>
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Informazioni di Contatto (Opzionali)</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                        Telefono
+                      </label>
+                      <input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="Numero di telefono"
+                        value={formData.phone}
+                        onChange={handleChange}
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="streetAddress" className="block text-sm font-medium text-gray-700">
+                        Indirizzo
+                      </label>
+                      <input
+                        id="streetAddress"
+                        name="streetAddress"
+                        type="text"
+                        className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="Via, numero civico"
+                        value={formData.streetAddress}
+                        onChange={handleChange}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="city" className="block text-sm font-medium text-gray-700">
+                          Città
+                        </label>
+                        <input
+                          id="city"
+                          name="city"
+                          type="text"
+                          className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          placeholder="Città"
+                          value={formData.city}
+                          onChange={handleChange}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="postalCode" className="block text-sm font-medium text-gray-700">
+                          CAP
+                        </label>
+                        <input
+                          id="postalCode"
+                          name="postalCode"
+                          type="text"
+                          className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          placeholder="CAP"
+                          value={formData.postalCode}
+                          onChange={handleChange}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="country" className="block text-sm font-medium text-gray-700">
+                        Paese
+                      </label>
+                      <input
+                        id="country"
+                        name="country"
+                        type="text"
+                        className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="Paese"
+                        value={formData.country}
+                        onChange={handleChange}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
             
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">

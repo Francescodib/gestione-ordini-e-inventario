@@ -15,7 +15,7 @@ import { useAuth } from '../contexts/AuthContext';
 const UserDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isAdmin } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -26,9 +26,14 @@ const UserDetailPage: React.FC = () => {
     firstName: '',
     lastName: '',
     email: '',
-    username: ''
+    username: '',
+    phone: '',
+    streetAddress: '',
+    city: '',
+    postalCode: '',
+    country: ''
   });
-  const [selectedRole, setSelectedRole] = useState<'USER' | 'MANAGER' | 'ADMIN'>('USER');
+  const [selectedRole, setSelectedRole] = useState<'CLIENT' | 'MANAGER' | 'ADMIN'>('CLIENT');
 
   useEffect(() => {
     if (id) {
@@ -49,9 +54,14 @@ const UserDetailPage: React.FC = () => {
           firstName: response.data.firstName || '',
           lastName: response.data.lastName || '',
           email: response.data.email,
-          username: response.data.username
+          username: response.data.username,
+          phone: response.data.phone || '',
+          streetAddress: response.data.streetAddress || '',
+          city: response.data.city || '',
+          postalCode: response.data.postalCode || '',
+          country: response.data.country || ''
         });
-        setSelectedRole(response.data.role as 'USER' | 'MANAGER' | 'ADMIN');
+        setSelectedRole(response.data.role as 'CLIENT' | 'MANAGER' | 'ADMIN');
       } else {
         setError('Utente non trovato');
       }
@@ -65,7 +75,7 @@ const UserDetailPage: React.FC = () => {
   };
 
   // Only admins can access this page
-  if (currentUser?.role !== 'ADMIN') {
+  if (!isAdmin()) {
     return (
       <Layout>
         <Card>
@@ -143,17 +153,17 @@ const UserDetailPage: React.FC = () => {
     const badges = {
       'ADMIN': 'bg-red-100 text-red-800',
       'MANAGER': 'bg-blue-100 text-blue-800',
-      'USER': 'bg-green-100 text-green-800'
+      'CLIENT': 'bg-green-100 text-green-800'
     };
 
-    return badges[role as keyof typeof badges] || badges['USER'];
+    return badges[role as keyof typeof badges] || badges['CLIENT'];
   };
 
   const getRoleText = (role: string) => {
     const texts = {
       'ADMIN': 'Amministratore',
       'MANAGER': 'Manager',
-      'USER': 'Utente'
+      'CLIENT': 'Cliente'
     };
 
     return texts[role as keyof typeof texts] || role;
@@ -419,6 +429,44 @@ const UserDetailPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+
+                {/* Address Fields - Only for CLIENT users */}
+                {user.role === 'CLIENT' && (
+                  <>
+                    {user.phone && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Telefono</label>
+                        <p className="mt-1 text-sm text-gray-900">{user.phone}</p>
+                      </div>
+                    )}
+                    {user.streetAddress && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Indirizzo</label>
+                        <p className="mt-1 text-sm text-gray-900">{user.streetAddress}</p>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-4">
+                      {user.city && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Città</label>
+                          <p className="mt-1 text-sm text-gray-900">{user.city}</p>
+                        </div>
+                      )}
+                      {user.postalCode && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">CAP</label>
+                          <p className="mt-1 text-sm text-gray-900">{user.postalCode}</p>
+                        </div>
+                      )}
+                    </div>
+                    {user.country && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Paese</label>
+                        <p className="mt-1 text-sm text-gray-900">{user.country}</p>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </Card>
@@ -510,7 +558,7 @@ const UserDetailPage: React.FC = () => {
         {/* Edit User Modal */}
         {showEditModal && (
           <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-gray-900">Modifica Utente</h3>
@@ -549,6 +597,47 @@ const UserDetailPage: React.FC = () => {
                     onChange={(e) => setEditFormData({...editFormData, username: e.target.value})}
                     fullWidth
                   />
+
+                  {/* Address fields - Only for CLIENT users */}
+                  {user && user.role === 'CLIENT' && (
+                    <>
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-medium text-gray-900 mb-3">Informazioni di Contatto</h4>
+                        <div className="space-y-4">
+                          <Input
+                            label="Telefono"
+                            value={editFormData.phone}
+                            onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                            fullWidth
+                          />
+                          <Input
+                            label="Indirizzo"
+                            value={editFormData.streetAddress}
+                            onChange={(e) => setEditFormData({...editFormData, streetAddress: e.target.value})}
+                            fullWidth
+                          />
+                          <div className="grid grid-cols-2 gap-3">
+                            <Input
+                              label="Città"
+                              value={editFormData.city}
+                              onChange={(e) => setEditFormData({...editFormData, city: e.target.value})}
+                            />
+                            <Input
+                              label="CAP"
+                              value={editFormData.postalCode}
+                              onChange={(e) => setEditFormData({...editFormData, postalCode: e.target.value})}
+                            />
+                          </div>
+                          <Input
+                            label="Paese"
+                            value={editFormData.country}
+                            onChange={(e) => setEditFormData({...editFormData, country: e.target.value})}
+                            fullWidth
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="flex space-x-3 mt-6">
                   <Button variant="secondary" onClick={() => setShowEditModal(false)}>
@@ -585,13 +674,13 @@ const UserDetailPage: React.FC = () => {
                       Seleziona nuovo ruolo
                     </label>
                     <div className="space-y-2">
-                      {['USER', 'MANAGER', 'ADMIN'].map((role) => (
+                      {['CLIENT', 'MANAGER', 'ADMIN'].map((role) => (
                         <label key={role} className="flex items-center">
                           <input
                             type="radio"
                             value={role}
                             checked={selectedRole === role}
-                            onChange={(e) => setSelectedRole(e.target.value as 'USER' | 'MANAGER' | 'ADMIN')}
+                            onChange={(e) => setSelectedRole(e.target.value as 'CLIENT' | 'MANAGER' | 'ADMIN')}
                             className="mr-2"
                           />
                           {getRoleText(role)}
