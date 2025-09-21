@@ -15,10 +15,10 @@ dotenv.config();
 const sequelize = new Sequelize({
   dialect: 'sqlite',
   storage: process.env.DATABASE_URL?.replace('file:', '') || path.join(__dirname, '../../dev.db'),
-  logging: process.env.NODE_ENV === 'development' 
-    ? (sql: string) => console.log('SQL:', sql) 
+  logging: process.env.NODE_ENV === 'development'
+    ? (sql: string) => console.log('SQL:', sql)
     : false,
-  
+
   // SQLite specific configuration
   define: {
     timestamps: true,
@@ -28,12 +28,51 @@ const sequelize = new Sequelize({
 
   // Connection pool configuration
   pool: {
-    max: 5,
+    max: 1, // SQLite works better with single connection
     min: 0,
-    acquire: 30000,
+    acquire: 60000, // Increase timeout for acquiring connections
     idle: 10000
+  },
+
+  // SQLite-specific optimizations
+  dialectOptions: {
+    // Enable Write-Ahead Logging for better concurrency
+    options: {
+      PRAGMA: {
+        journal_mode: 'WAL',
+        synchronous: 'NORMAL',
+        busy_timeout: 30000, // 30 second timeout for locked database
+        cache_size: 1000,
+        temp_store: 'memory'
+      }
+    }
+  },
+
+  // Transaction retry configuration
+  retry: {
+    max: 3,
+    backoffBase: 1000,
+    backoffExponent: 1.5
   }
 });
+
+/**
+ * Configure SQLite optimizations
+ */
+export const configureSQLiteOptimizations = async (): Promise<void> => {
+  try {
+    // Enable WAL mode for better concurrency
+    await sequelize.query('PRAGMA journal_mode = WAL;');
+    await sequelize.query('PRAGMA synchronous = NORMAL;');
+    await sequelize.query('PRAGMA busy_timeout = 30000;');
+    await sequelize.query('PRAGMA cache_size = 1000;');
+    await sequelize.query('PRAGMA temp_store = memory;');
+    await sequelize.query('PRAGMA foreign_keys = ON;');
+    console.log('✅ SQLite optimizations configured');
+  } catch (error) {
+    console.warn('⚠️  SQLite optimization configuration failed:', error);
+  }
+};
 
 /**
  * Test database connection
@@ -43,6 +82,9 @@ export const connectDatabase = async (): Promise<void> => {
     await sequelize.authenticate();
     console.log('Database connected successfully');
     console.log(`Database: SQLite (${sequelize.getDatabaseName()})`);
+
+    // Configure SQLite optimizations
+    await configureSQLiteOptimizations();
 
   } catch (error) {
     console.error('Database connection failed:', error);

@@ -8,6 +8,7 @@ import { sequelize } from '../config/database';
 import { logger, logUtils } from '../config/logger';
 import { ProductService } from './productService';
 import { getNotificationService } from './notificationService';
+import { AddressUtils, type OrderAddress, type StandardOrderRequest } from '../types/orderAddress';
 import { Op, Transaction, WhereOptions, FindOptions, Includeable } from 'sequelize';
 // Note: Order types are defined inline in this service for now
 // Future migration: move to ../types/order.ts
@@ -23,30 +24,8 @@ export interface CreateOrderItemRequest {
 
 export interface CreateOrderRequest {
   items: CreateOrderItemRequest[];
-  shippingAddress: {
-    firstName: string;
-    lastName: string;
-    company?: string;
-    address1: string;
-    address2?: string;
-    city: string;
-    state: string;
-    postalCode: string;
-    country: string;
-    phone?: string;
-  };
-  billingAddress?: {
-    firstName: string;
-    lastName: string;
-    company?: string;
-    address1: string;
-    address2?: string;
-    city: string;
-    state: string;
-    postalCode: string;
-    country: string;
-    phone?: string;
-  };
+  shippingAddress: OrderAddress;
+  billingAddress?: OrderAddress;
   notes?: string;
   currency?: string;
 }
@@ -182,7 +161,7 @@ export class OrderService {
 
       for (const item of orderData.items) {
         // Get product details
-        const product = await ProductService.getProductById(item.productId);
+        const product = await ProductService.getProductById(item.productId, transaction);
         if (!product) {
           throw new Error(`Product with ID ${item.productId} not found`);
         }
@@ -221,6 +200,15 @@ export class OrderService {
       // Use billing address same as shipping if not provided
       const billingAddress = orderData.billingAddress || orderData.shippingAddress;
 
+      // Validate addresses using AddressUtils
+      if (!AddressUtils.validate(orderData.shippingAddress)) {
+        throw new Error('Invalid shipping address format');
+      }
+
+      if (orderData.billingAddress && !AddressUtils.validate(orderData.billingAddress)) {
+        throw new Error('Invalid billing address format');
+      }
+
       // Create the order
       const newOrder = await Order.create({
         orderNumber,
@@ -233,8 +221,8 @@ export class OrderService {
         discountAmount,
         totalAmount,
         currency: orderData.currency || 'EUR',
-        shippingAddress: JSON.stringify(orderData.shippingAddress),
-        billingAddress: JSON.stringify(billingAddress),
+        shippingAddress: AddressUtils.toJson(orderData.shippingAddress),
+        billingAddress: AddressUtils.toJson(billingAddress),
         notes: orderData.notes,
       }, { transaction });
 
@@ -246,7 +234,7 @@ export class OrderService {
 
       // Update product stock
       for (const item of orderItems) {
-        await ProductService.updateStock(item.productId, item.quantity, 'subtract', userId);
+        await ProductService.updateStock(item.productId, item.quantity, 'subtract', userId, transaction);
       }
 
       await transaction.commit();
@@ -654,8 +642,13 @@ export class OrderService {
         updatedAt: new Date(),
       };
 
+      // Capture original status before update for notifications
+      const originalStatus = existingOrder.status;
+
       // Update the order
+      logger.info('About to update order', { orderId: id, updatePayload, oldStatus: existingOrder.status });
       await existingOrder.update(updatePayload, { transaction });
+      logger.info('Order updated in database', { orderId: id, newStatus: updatePayload.status });
 
       await transaction.commit();
 
@@ -707,12 +700,12 @@ export class OrderService {
       });
 
       // Send real-time notification for status changes
-      if (updateData.status && updateData.status !== existingOrder.status) {
+      if (updateData.status && updateData.status !== originalStatus) {
         const notificationService = getNotificationService();
         if (notificationService) {
-          notificationService.notifyOrderStatusChange(
+          await notificationService.notifyOrderStatusChange(
             order!.id,
-            existingOrder.status,
+            originalStatus,
             updateData.status,
             order!.userId
           );
@@ -1023,5 +1016,91 @@ export class OrderService {
     };
 
     return this.getOrders(searchOptions);
+  }
+
+  /**
+   * Delete an order (admin only)
+   */
+  static async deleteOrder(id: number, adminUserId?: number): Promise<void> {
+    const transaction = await sequelize.transaction();
+
+    try {
+      // Find the order with all its related data
+      const order = await Order.findByPk(id, {
+        include: [
+          {
+            model: OrderItem,
+            as: 'items',
+            include: [
+              {
+                model: Product,
+                as: 'product'
+              }
+            ]
+          }
+        ],
+        transaction
+      });
+
+      if (!order) {
+        throw new Error(`Order with ID ${id} not found`);
+      }
+
+      // Restore stock for all items in the order
+      if (order.items) {
+        for (const item of order.items) {
+          if (item.product) {
+            const currentStock = item.product.stock || 0;
+            const newStock = currentStock + item.quantity;
+
+            await Product.update(
+              { stock: newStock },
+              {
+                where: { id: item.productId },
+                transaction
+              }
+            );
+
+            logger.info('Stock restored for product', {
+              productId: item.productId,
+              productName: item.product.name,
+              previousStock: currentStock,
+              restoredQuantity: item.quantity,
+              newStock: newStock
+            });
+          }
+        }
+      }
+
+      // Delete order items first (foreign key constraint)
+      await OrderItem.destroy({
+        where: { orderId: id },
+        transaction
+      });
+
+      // Delete the order
+      await Order.destroy({
+        where: { id },
+        transaction
+      });
+
+      await transaction.commit();
+
+      logger.info('Order deleted successfully', {
+        orderId: id,
+        orderNumber: order.orderNumber,
+        adminUserId,
+        itemsCount: order.items?.length || 0
+      });
+
+    } catch (error: any) {
+      await transaction.rollback();
+      logger.error('Order deletion failed', {
+        error: error.message,
+        orderId: id,
+        adminUserId
+      });
+      throw error;
+    }
   }
 }

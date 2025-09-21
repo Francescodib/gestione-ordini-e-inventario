@@ -79,6 +79,9 @@ const ProductCreatePage: React.FC = () => {
       if (!formData.name.trim()) {
         throw new Error('Il nome del prodotto è obbligatorio');
       }
+      if (!formData.description.trim() || formData.description.trim().length < 10) {
+        throw new Error('La descrizione è obbligatoria e deve essere almeno di 10 caratteri');
+      }
       if (!formData.sku.trim()) {
         throw new Error('Lo SKU è obbligatorio');
       }
@@ -280,14 +283,15 @@ const ProductCreatePage: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Descrizione
+                  Descrizione *
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Descrizione dettagliata del prodotto"
+                  placeholder="Descrizione dettagliata del prodotto (minimo 10 caratteri)"
+                  required
                 />
               </div>
 

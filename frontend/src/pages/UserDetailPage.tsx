@@ -240,13 +240,13 @@ const UserDetailPage: React.FC = () => {
       const response = await authService.sendPasswordReset(user.email);
 
       if (response.success) {
-        setSuccess('Email di reset password inviata con successo');
+        setSuccess('Simulazione di Funzione non ancora implementata - L\'invio di email di reset password non è al momento attivo');
       } else {
-        setError('Errore nell\'invio dell\'email di reset');
+        setError('Funzione non ancora implementata - L\'invio di email di reset password non è al momento attivo');
       }
     } catch (err: unknown) {
       console.error('Error sending password reset:', err);
-      setError('Errore nell\'invio dell\'email di reset');
+      setError('Funzione non ancora implementata - L\'invio di email di reset password non è al momento attivo');
     } finally {
       setLoading(false);
     }

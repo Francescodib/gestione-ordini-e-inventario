@@ -51,7 +51,8 @@ export interface Order {
   discountAmount: number;
   totalAmount: number;
   currency: string;
-  shippingAddress: Record<string, unknown>;
+  shippingAddress: string | Record<string, unknown>;
+  billingAddress?: string | Record<string, unknown>;
   items: OrderItem[];
   user?: User;
   createdAt: string;
@@ -335,6 +336,11 @@ export const orderService = {
 
   async updateOrderStatus(id: string, status: Order['status']): Promise<ApiResponse<Order>> {
     const response = await api.put(`/orders/${id}/status`, { status });
+    return response.data;
+  },
+
+  async deleteOrder(id: string): Promise<ApiResponse<void>> {
+    const response = await api.delete(`/orders/${id}`);
     return response.data;
   },
 

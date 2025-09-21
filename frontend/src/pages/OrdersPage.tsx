@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { orderService } from '../services/api';
 import type { Order } from '../services/api';
+import { AddressUtils } from '../types/orderAddress';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Table from '../components/Table';
@@ -91,6 +92,29 @@ const OrdersPage: React.FC = () => {
     setSearchParams({});
   };
 
+  const getCustomerName = (record: Order): { name: string; subtitle: string } => {
+    // Use the unified AddressUtils to get customer info
+    const customerInfo = AddressUtils.getCustomerInfo(record.shippingAddress);
+
+    // If address parsing fails and we have user info, use that as fallback
+    if (customerInfo.name === 'N/A' && record.user) {
+      return {
+        name: `${record.user.firstName} ${record.user.lastName}`,
+        subtitle: record.user.email
+      };
+    }
+
+    // If we still don't have a name, use user ID
+    if (customerInfo.name === 'N/A') {
+      return {
+        name: `ID: ${record.userId}`,
+        subtitle: ''
+      };
+    }
+
+    return customerInfo;
+  };
+
   const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
       const response = await orderService.updateOrderStatus(orderId, newStatus);
@@ -167,22 +191,20 @@ const OrdersPage: React.FC = () => {
       )
     },
     {
-      key: 'user' as keyof Order,
+      key: 'customer' as keyof Order,
       title: 'Cliente',
-      render: (user: any, record: Order) => {
-        if (user) {
-          return (
-            <div>
-              <div className="text-sm font-medium text-gray-900">
-                {user.firstName} {user.lastName}
-              </div>
-              <div className="text-sm text-gray-500">{user.email}</div>
-            </div>
-          );
-        }
+      render: (value: any, record: Order) => {
+        const customer = getCustomerName(record);
         return (
-          <div className="text-sm text-gray-500">
-            ID: {record.userId}
+          <div>
+            <div className="text-sm font-medium text-gray-900">
+              {customer.name}
+            </div>
+            {customer.subtitle && (
+              <div className="text-sm text-gray-500">
+                {customer.subtitle}
+              </div>
+            )}
           </div>
         );
       }

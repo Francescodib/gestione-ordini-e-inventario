@@ -142,7 +142,7 @@ export class ProductService {
         name: productData.name,
         description: productData.description,
         sku: productData.sku.toUpperCase(),
-        barcode: productData.barcode,
+        barcode: productData.barcode && productData.barcode.trim() !== '' ? productData.barcode : null,
         categoryId: productData.categoryId,
         price: productData.price,
         costPrice: productData.costPrice,
@@ -151,10 +151,10 @@ export class ProductService {
         maxStock: productData.maxStock,
         weight: productData.weight,
         status: productData.status || ProductStatus.ACTIVE,
-        images: productData.images ? JSON.stringify(productData.images) : null,
-        tags: productData.tags ? JSON.stringify(productData.tags) : null,
-        supplier: productData.supplier ? JSON.stringify(productData.supplier) : null,
-        dimensions: productData.dimensions ? JSON.stringify(productData.dimensions) : null
+        images: productData.images ? JSON.stringify(productData.images) : undefined,
+        tags: productData.tags ? JSON.stringify(productData.tags) : undefined,
+        supplier: productData.supplier ? JSON.stringify(productData.supplier) : undefined,
+        dimensions: productData.dimensions ? JSON.stringify(productData.dimensions) : undefined
       };
 
       // Create the product
@@ -294,12 +294,13 @@ export class ProductService {
   /**
    * Get product by ID
    */
-  static async getProductById(id: number): Promise<Product | null> {
+  static async getProductById(id: number, transaction?: any): Promise<Product | null> {
     try {
       const startTime = Date.now();
-      
+
       const product = await Product.findByPk(id, {
-        include: [{ model: Category, as: 'category' }]
+        include: [{ model: Category, as: 'category' }],
+        transaction
       });
 
       const duration = Date.now() - startTime;
@@ -494,9 +495,9 @@ export class ProductService {
   /**
    * Update product stock
    */
-  static async updateStock(id: number, quantity: number, operation: 'add' | 'subtract' = 'subtract', userId?: string | number): Promise<Product> {
+  static async updateStock(id: number, quantity: number, operation: 'add' | 'subtract' = 'subtract', userId?: string | number, transaction?: any): Promise<Product> {
     try {
-      const product = await Product.findByPk(id);
+      const product = await Product.findByPk(id, { transaction });
 
       if (!product) {
         throw new Error(`Product with ID ${id} not found`);
@@ -517,11 +518,12 @@ export class ProductService {
       await product.update({
         stock: newStock,
         status: newStatus
-      });
+      }, { transaction });
 
       // Reload with category association
       const updatedProduct = await Product.findByPk(id, {
-        include: [{ model: Category, as: 'category' }]
+        include: [{ model: Category, as: 'category' }],
+        transaction
       });
 
       if (userId) {

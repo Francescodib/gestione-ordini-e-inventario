@@ -2,18 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { orderService } from '../services/api';
 import type { Order } from '../services/api';
+import { AddressUtils } from '../types/orderAddress';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import ErrorMessage from '../components/ErrorMessage';
+import { useAuth } from '../contexts/AuthContext';
 
 const OrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -38,6 +42,68 @@ const OrderDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!order || !id) return;
+
+    const isConfirmed = window.confirm(
+      `Sei sicuro di voler eliminare l'ordine #${order.orderNumber}?\n\nQuesta azione è irreversibile e ripristinerà le quantità dei prodotti in inventario.`
+    );
+
+    if (!isConfirmed) return;
+
+    try {
+      setIsDeleting(true);
+      setError('');
+
+      await orderService.deleteOrder(id);
+
+      setSuccess('Ordine eliminato con successo');
+
+      // Redirect to orders page after a short delay
+      setTimeout(() => {
+        navigate('/orders');
+      }, 2000);
+
+    } catch (error: any) {
+      setError(error.message || 'Errore durante l\'eliminazione dell\'ordine');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Valid status transitions based on current status
+  const getValidStatusTransitions = (currentStatus: Order['status']): { value: Order['status']; label: string }[] => {
+    const statusTransitions: Record<Order['status'], { value: Order['status']; label: string }[]> = {
+      'PENDING': [
+        { value: 'PENDING', label: 'In Attesa' },
+        { value: 'PROCESSING', label: 'In Elaborazione' },
+        { value: 'CANCELLED', label: 'Annullato' }
+      ],
+      'PROCESSING': [
+        { value: 'PROCESSING', label: 'In Elaborazione' },
+        { value: 'SHIPPED', label: 'Spedito' },
+        { value: 'CANCELLED', label: 'Annullato' }
+      ],
+      'SHIPPED': [
+        { value: 'SHIPPED', label: 'Spedito' },
+        { value: 'DELIVERED', label: 'Consegnato' },
+        { value: 'CANCELLED', label: 'Annullato' }
+      ],
+      'DELIVERED': [
+        { value: 'DELIVERED', label: 'Consegnato' },
+        { value: 'RETURNED', label: 'Restituito' }
+      ],
+      'CANCELLED': [
+        { value: 'CANCELLED', label: 'Annullato' }
+      ],
+      'RETURNED': [
+        { value: 'RETURNED', label: 'Restituito' }
+      ]
+    };
+
+    return statusTransitions[currentStatus] || [];
   };
 
   const updateOrderStatus = async (newStatus: Order['status']) => {
@@ -104,25 +170,36 @@ const OrderDetailPage: React.FC = () => {
     return texts[status as keyof typeof texts] || status;
   };
 
-  const formatAddress = (addressString: string | Record<string, unknown>) => {
-    try {
-      // If it's already an object, use it directly
-      if (typeof addressString === 'object' && addressString !== null) {
-        const addr = addressString as any;
-        return `${addr.name || ''}\n${addr.street || ''}\n${addr.city || ''} ${addr.postalCode || ''}\n${addr.country || ''}`.trim();
-      }
+  const getCustomerName = (order: Order): string => {
+    // Use the unified AddressUtils to get customer info
+    const customerInfo = AddressUtils.getCustomerInfo(order.shippingAddress);
 
-      // If it's a string, try to parse it as JSON
-      if (typeof addressString === 'string') {
-        const parsed = JSON.parse(addressString);
-        return `${parsed.name || ''}\n${parsed.street || ''}\n${parsed.city || ''} ${parsed.postalCode || ''}\n${parsed.country || ''}`.trim();
-      }
-
-      return 'Indirizzo non disponibile';
-    } catch (error) {
-      // If it's not JSON, return as is (fallback for plain text addresses)
-      return typeof addressString === 'string' ? addressString : 'Indirizzo non disponibile';
+    // If address parsing fails and we have user info, use that as fallback
+    if (customerInfo.name === 'N/A' && order.user) {
+      return `${order.user.firstName} ${order.user.lastName}`;
     }
+
+    return customerInfo.name;
+  };
+
+  const formatAddress = (addressString: string | Record<string, unknown>) => {
+    // Handle null or undefined
+    if (!addressString) {
+      return 'Indirizzo non disponibile';
+    }
+
+    // Use the unified AddressUtils for formatting
+    if (typeof addressString === 'string') {
+      const address = AddressUtils.fromJson(addressString);
+      return address ? AddressUtils.format(address) : addressString;
+    } else if (typeof addressString === 'object') {
+      // If it's already an object, validate and format it
+      if (AddressUtils.validate(addressString)) {
+        return AddressUtils.format(addressString);
+      }
+    }
+
+    return 'Indirizzo non disponibile';
   };
 
   if (loading) {
@@ -187,7 +264,7 @@ const OrderDetailPage: React.FC = () => {
               </nav>
               <h1 className="text-2xl font-bold text-gray-900">Ordine {order.orderNumber}</h1>
               <p className="mt-1 text-sm text-gray-600">
-                Cliente: {order.user?.firstName} {order.user?.lastName}
+                Cliente: {getCustomerName(order)}
               </p>
             </div>
             <div className="flex space-x-3">
@@ -196,6 +273,16 @@ const OrderDetailPage: React.FC = () => {
                   Modifica
                 </Button>
               </Link>
+
+              {currentUser?.role === 'ADMIN' && (
+                <Button
+                  variant="danger"
+                  onClick={handleDeleteOrder}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Eliminazione...' : 'Elimina'}
+                </Button>
+              )}
             </div>
           </div>
 
@@ -344,12 +431,11 @@ const OrderDetailPage: React.FC = () => {
                       defaultValue=""
                     >
                       <option value="">Seleziona nuovo stato</option>
-                      <option value="PENDING">In Attesa</option>
-                      <option value="PROCESSING">In Elaborazione</option>
-                      <option value="SHIPPED">Spedito</option>
-                      <option value="DELIVERED">Consegnato</option>
-                      <option value="CANCELLED">Annullato</option>
-                      <option value="RETURNED">Restituito</option>
+                      {getValidStatusTransitions(order.status).map((statusOption) => (
+                        <option key={statusOption.value} value={statusOption.value}>
+                          {statusOption.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

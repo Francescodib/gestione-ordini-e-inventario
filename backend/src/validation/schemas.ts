@@ -224,7 +224,7 @@ export const createProductSchema = Joi.object({
   barcode: Joi.string()
     .pattern(new RegExp('^[0-9]{8,13}$'))
     .optional()
-    .allow(null)
+    .allow(null, '')
     .messages({
       'string.pattern.base': 'Barcode must be 8-13 digits'
     }),
@@ -342,13 +342,11 @@ export const createCategorySchema = Joi.object({
 
   description: Joi.string()
     .trim()
-    .min(5)
     .max(200)
-    .required()
+    .allow('')
+    .optional()
     .messages({
-      'string.min': 'Category description must be at least 5 characters long',
-      'string.max': 'Category description cannot exceed 200 characters',
-      'any.required': 'Category description is required'
+      'string.max': 'Category description cannot exceed 200 characters'
     }),
 
   slug: Joi.string()
@@ -360,12 +358,15 @@ export const createCategorySchema = Joi.object({
       'string.pattern.base': 'Slug must contain only lowercase letters, numbers, and hyphens'
     }),
 
-  parentId: Joi.number()
-    .integer()
-    .positive()
+  parentId: Joi.alternatives()
+    .try(
+      Joi.number().integer().positive(),
+      Joi.string().valid('').custom(() => null),
+      Joi.valid(null)
+    )
     .optional()
-    .allow(null)
     .messages({
+      'alternatives.match': 'Parent ID must be a valid integer or empty',
       'number.integer': 'Parent ID must be a valid integer',
       'number.positive': 'Parent ID must be positive'
     }),
@@ -379,6 +380,13 @@ export const createCategorySchema = Joi.object({
       'number.integer': 'Sort order must be a whole number',
       'number.min': 'Sort order cannot be negative',
       'number.max': 'Sort order cannot exceed 9999'
+    }),
+
+  isActive: Joi.boolean()
+    .optional()
+    .default(true)
+    .messages({
+      'boolean.base': 'Status must be a boolean value'
     })
 });
 
@@ -398,13 +406,14 @@ export const updateCategorySchema = createCategorySchema.fork(
  * Schema for order item
  */
 export const orderItemSchema = Joi.object({
-  productId: Joi.number()
-    .integer()
-    .positive()
+  productId: Joi.alternatives()
+    .try(
+      Joi.number().integer().positive(),
+      Joi.string().pattern(/^\d+$/).custom((value) => parseInt(value, 10))
+    )
     .required()
     .messages({
-      'number.integer': 'Product ID must be a valid integer',
-      'number.positive': 'Product ID must be positive',
+      'alternatives.match': 'Product ID must be a valid integer',
       'any.required': 'Product ID is required'
     }),
 
@@ -418,7 +427,13 @@ export const orderItemSchema = Joi.object({
       'number.min': 'Quantity must be at least 1',
       'number.max': 'Quantity cannot exceed 999',
       'any.required': 'Quantity is required'
-    })
+    }),
+
+  // Optional fields that frontend might send
+  name: Joi.string().optional(),
+  sku: Joi.string().optional(),
+  price: Joi.number().positive().optional(),
+  totalPrice: Joi.number().positive().optional()
 });
 
 /**
@@ -536,6 +551,16 @@ export const shippingAddressSchema = Joi.object({
  * Schema for order creation
  */
 export const createOrderSchema = Joi.object({
+  userId: Joi.alternatives()
+    .try(
+      Joi.number().integer().positive(),
+      Joi.string().pattern(/^\d+$/).custom((value) => parseInt(value, 10))
+    )
+    .optional()
+    .messages({
+      'alternatives.match': 'User ID must be a valid integer'
+    }),
+
   items: Joi.array()
     .items(orderItemSchema)
     .min(1)
@@ -545,6 +570,46 @@ export const createOrderSchema = Joi.object({
       'array.min': 'Order must contain at least one item',
       'array.max': 'Order cannot contain more than 50 items',
       'any.required': 'Order items are required'
+    }),
+
+  subtotal: Joi.number()
+    .positive()
+    .precision(2)
+    .optional()
+    .messages({
+      'number.positive': 'Subtotal must be a positive number'
+    }),
+
+  shippingCost: Joi.number()
+    .min(0)
+    .precision(2)
+    .default(0)
+    .messages({
+      'number.min': 'Shipping cost cannot be negative'
+    }),
+
+  taxAmount: Joi.number()
+    .min(0)
+    .precision(2)
+    .default(0)
+    .messages({
+      'number.min': 'Tax amount cannot be negative'
+    }),
+
+  discountAmount: Joi.number()
+    .min(0)
+    .precision(2)
+    .default(0)
+    .messages({
+      'number.min': 'Discount amount cannot be negative'
+    }),
+
+  totalAmount: Joi.number()
+    .positive()
+    .precision(2)
+    .optional()
+    .messages({
+      'number.positive': 'Total amount must be a positive number'
     }),
 
   shippingAddress: shippingAddressSchema.required(),
@@ -558,6 +623,20 @@ export const createOrderSchema = Joi.object({
     .allow('')
     .messages({
       'string.max': 'Notes cannot exceed 1000 characters'
+    }),
+
+  status: Joi.string()
+    .valid(...Object.values(OrderStatus))
+    .optional()
+    .messages({
+      'any.only': `Status must be one of: ${Object.values(OrderStatus).join(', ')}`
+    }),
+
+  paymentStatus: Joi.string()
+    .valid(...Object.values(PaymentStatus))
+    .optional()
+    .messages({
+      'any.only': `Payment status must be one of: ${Object.values(PaymentStatus).join(', ')}`
     }),
 
   currency: Joi.string()

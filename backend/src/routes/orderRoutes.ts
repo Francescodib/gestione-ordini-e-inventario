@@ -678,6 +678,66 @@ router.post('/bulk/update-status',
   }
 );
 
+/**
+ * DELETE /api/orders/:id
+ * Delete an order (admin only)
+ */
+router.delete('/:id',
+  verifyToken,
+  validateId(),
+  async (req: Request, res: Response) => {
+    try {
+      logger.info('DELETE order request received', { orderId: req.params.id });
+
+      // Check if user is admin
+      if (req.user?.role !== 'ADMIN') {
+        logger.warn('Non-admin user attempted order deletion', { userId: req.user?.userId, role: req.user?.role });
+        return res.status(403).json({
+          success: false,
+          message: 'Admin access required to delete orders'
+        });
+      }
+
+      const orderId = parseIntId(req.params.id);
+      const adminUserId = req.user.userId;
+
+      logger.info('Starting order deletion process', { orderId, adminUserId });
+      logUtils.logDbOperation('DELETE', 'orders', orderId);
+
+      logger.info('Calling OrderService.deleteOrder');
+      await OrderService.deleteOrder(orderId, adminUserId);
+      logger.info('OrderService.deleteOrder completed');
+
+      logger.info('Order deletion completed', {
+        orderId,
+        adminUserId,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+
+      res.json({
+        success: true,
+        message: 'Order deleted successfully'
+      });
+
+    } catch (error: any) {
+      logger.error('Error deleting order', {
+        error: error.message,
+        orderId: req.params.id,
+        userId: req.user?.userId
+      });
+
+      const statusCode = error.message.includes('not found') ? 404 : 500;
+
+      res.status(statusCode).json({
+        success: false,
+        message: 'Error deleting order',
+        error: error.message
+      });
+    }
+  }
+);
+
 // Error handling middleware
 router.use(handleValidationErrors());
 

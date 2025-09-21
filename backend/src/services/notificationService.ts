@@ -35,7 +35,7 @@ export class NotificationService {
   constructor(server: HTTPServer) {
     this.io = new SocketIOServer(server, {
       cors: {
-        origin: process.env.FRONTEND_URL || "http://localhost:5173",
+        origin: process.env.FRONTEND_URL || ["http://localhost:5173", "http://localhost:5174"],
         methods: ["GET", "POST"],
         credentials: true
       },
@@ -127,24 +127,10 @@ export class NotificationService {
       totalConnections: this.connectedUsers.get(userId)?.length || 0
     });
 
-    // Send welcome message
-    socket.emit('notification', {
-      type: 'SYSTEM_ALERT',
-      title: 'Connesso',
-      message: 'Notifiche in tempo reale attivate',
-      timestamp: new Date()
-    });
-
-    // Send current connection count to admins
-    this.notifyAdmins({
-      type: 'SYSTEM_ALERT',
-      title: 'Nuovo Utente Connesso',
-      message: `${socket.user.email} si è connesso alle notifiche`,
-      timestamp: new Date(),
-      data: {
-        totalConnectedUsers: this.connectedUsers.size,
-        totalActiveSockets: Array.from(this.connectedUsers.values()).flat().length
-      }
+    logger.info('User connected to notifications', {
+      userId: socket.user.id,
+      userEmail: socket.user.email,
+      role: socket.user.role
     });
   }
 
@@ -294,7 +280,7 @@ export class NotificationService {
   /**
    * Order status change notification
    */
-  public notifyOrderStatusChange(orderId: number, oldStatus: string, newStatus: string, userId?: number): void {
+  public async notifyOrderStatusChange(orderId: number, oldStatus: string, newStatus: string, userId?: number): Promise<void> {
     const notification: NotificationPayload = {
       type: 'ORDER_STATUS_CHANGE',
       title: 'Stato Ordine Aggiornato',
@@ -308,13 +294,26 @@ export class NotificationService {
       }
     };
 
-    // Notify the customer if userId is provided
-    if (userId) {
-      this.notifyUser(userId, notification);
-    }
-
     // Always notify managers and admins
     this.notifyManagers(notification);
+
+    // Notify the customer only if they are not already an admin/manager
+    if (userId) {
+      // Check if user has admin/manager role by looking at connected user sockets
+      const userSockets = this.connectedUsers.get(userId);
+      let isAdminOrManager = false;
+
+      if (userSockets && userSockets.length > 0) {
+        // Check the role from any socket (they should all have same user)
+        const userRole = userSockets[0].user?.role;
+        isAdminOrManager = userRole === 'ADMIN' || userRole === 'MANAGER';
+      }
+
+      // Only notify as customer if they're not admin/manager
+      if (!isAdminOrManager) {
+        this.notifyUser(userId, notification);
+      }
+    }
   }
 
   /**

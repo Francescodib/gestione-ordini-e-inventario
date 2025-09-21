@@ -267,16 +267,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ token, classNam
             </div>
 
             {/* Footer */}
-            {notifications.length > 0 && (
-              <div className="p-3 border-t border-gray-200 bg-gray-50">
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="w-full text-center text-sm text-blue-600 hover:text-blue-800"
-                >
-                  Visualizza tutte le notifiche
-                </button>
-              </div>
-            )}
           </div>
         </>
       )}

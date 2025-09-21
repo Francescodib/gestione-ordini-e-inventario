@@ -28,7 +28,10 @@
       "Bash(lsof:*)",
       "Bash(kill:*)",
       "Bash(xargs kill:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(sudo lsof:*)",
+      "Bash(xargs:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

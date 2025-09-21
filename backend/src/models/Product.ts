@@ -146,10 +146,7 @@ Product.init(
     },
     barcode: {
       type: DataTypes.STRING,
-      allowNull: true,
-      validate: {
-        len: [1, 50]
-      }
+      allowNull: true
     },
     categoryId: {
       type: DataTypes.INTEGER,

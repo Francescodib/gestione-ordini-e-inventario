@@ -2,6 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { orderService, productService, authService } from '../services/api';
 import type { Product, User } from '../services/api';
+// Temporary: using inline type until module loading is fixed
+interface OrderAddress {
+  firstName: string;
+  lastName: string;
+  company?: string;
+  address1: string;
+  address2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  phone?: string;
+}
+
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -19,20 +33,8 @@ interface OrderItem {
 interface OrderFormData {
   userId: string;
   items: OrderItem[];
-  shippingAddress: {
-    name: string;
-    street: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
-  billingAddress: {
-    name: string;
-    street: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
+  shippingAddress: OrderAddress;
+  billingAddress: OrderAddress;
   notes: string;
   shippingCost: number;
   taxAmount: number;
@@ -58,18 +60,28 @@ const OrderCreatePage: React.FC = () => {
     userId: '',
     items: [],
     shippingAddress: {
-      name: '',
-      street: '',
+      firstName: '',
+      lastName: '',
+      company: '',
+      address1: '',
+      address2: '',
       city: '',
+      state: '',
       postalCode: '',
-      country: 'Italia'
+      country: 'Italy',
+      phone: ''
     },
     billingAddress: {
-      name: '',
-      street: '',
+      firstName: '',
+      lastName: '',
+      company: '',
+      address1: '',
+      address2: '',
       city: '',
+      state: '',
       postalCode: '',
-      country: 'Italia'
+      country: 'Italy',
+      phone: ''
     },
     notes: '',
     shippingCost: 0,
@@ -244,109 +256,131 @@ const OrderCreatePage: React.FC = () => {
         const { shippingAddress, billingAddress } = response.data;
 
         // Verifica se ci sono indirizzi validi
-        const hasShippingAddress = shippingAddress && Object.keys(shippingAddress).length > 0 && shippingAddress.name;
-        const hasBillingAddress = billingAddress && Object.keys(billingAddress).length > 0 && billingAddress.name;
+        const hasShippingAddress = shippingAddress && Object.keys(shippingAddress).length > 0 &&
+          (shippingAddress.firstName || shippingAddress.name);
+        const hasBillingAddress = billingAddress && Object.keys(billingAddress).length > 0 &&
+          (billingAddress.firstName || billingAddress.name);
 
         if (hasShippingAddress || hasBillingAddress) {
-          // Popola gli indirizzi disponibili
+          // Funzione per convertire l'indirizzo al formato unificato
+          const convertToUnifiedFormat = (addr: any): OrderAddress => {
+            // Se è già nel formato unificato
+            if (addr.firstName !== undefined) {
+              return {
+                firstName: addr.firstName || '',
+                lastName: addr.lastName || '',
+                company: addr.company || '',
+                address1: addr.address1 || '',
+                address2: addr.address2 || '',
+                city: addr.city || '',
+                state: addr.state || addr.city || 'IT',
+                postalCode: addr.postalCode || '',
+                country: addr.country || 'Italy',
+                phone: addr.phone || ''
+              };
+            }
+            // Se è nel formato legacy (name, street)
+            const fullName = addr.name || '';
+            const nameParts = fullName.trim().split(' ');
+            return {
+              firstName: nameParts[0] || '',
+              lastName: nameParts.slice(1).join(' ') || '',
+              company: addr.company || '',
+              address1: addr.street || '',
+              address2: '',
+              city: addr.city || '',
+              state: addr.state || addr.city || 'IT',
+              postalCode: addr.postalCode || '',
+              country: addr.country || 'Italy',
+              phone: addr.phone || ''
+            };
+          };
+
+          const emptyAddress: OrderAddress = {
+            firstName: '',
+            lastName: '',
+            company: '',
+            address1: '',
+            address2: '',
+            city: '',
+            state: '',
+            postalCode: '',
+            country: 'Italy',
+            phone: ''
+          };
+
           setFormData(prev => ({
             ...prev,
-            shippingAddress: hasShippingAddress ? {
-              name: shippingAddress.name || '',
-              street: shippingAddress.street || '',
-              city: shippingAddress.city || '',
-              postalCode: shippingAddress.postalCode || '',
-              country: shippingAddress.country || 'Italia'
-            } : {
-              name: '',
-              street: '',
-              city: '',
-              postalCode: '',
-              country: 'Italia'
-            },
-            billingAddress: hasBillingAddress ? {
-              name: billingAddress.name || '',
-              street: billingAddress.street || '',
-              city: billingAddress.city || '',
-              postalCode: billingAddress.postalCode || '',
-              country: billingAddress.country || 'Italia'
-            } : {
-              name: '',
-              street: '',
-              city: '',
-              postalCode: '',
-              country: 'Italia'
-            }
+            shippingAddress: hasShippingAddress ? convertToUnifiedFormat(shippingAddress) : emptyAddress,
+            billingAddress: hasBillingAddress ? convertToUnifiedFormat(billingAddress) : emptyAddress
           }));
 
-          // Messaggio di successo
           setSuccess('Indirizzi caricati automaticamente dall\'ultimo ordine del cliente');
           setTimeout(() => setSuccess(''), 3000);
         } else {
-          // Svuota tutti i campi se non ci sono indirizzi validi
+          const emptyAddress: OrderAddress = {
+            firstName: '',
+            lastName: '',
+            company: '',
+            address1: '',
+            address2: '',
+            city: '',
+            state: '',
+            postalCode: '',
+            country: 'Italy',
+            phone: ''
+          };
+
           setFormData(prev => ({
             ...prev,
-            shippingAddress: {
-              name: '',
-              street: '',
-              city: '',
-              postalCode: '',
-              country: 'Italia'
-            },
-            billingAddress: {
-              name: '',
-              street: '',
-              city: '',
-              postalCode: '',
-              country: 'Italia'
-            }
+            shippingAddress: emptyAddress,
+            billingAddress: emptyAddress
           }));
 
-          // Messaggio informativo
           setError('Nessun indirizzo precedente trovato per questo cliente - inserisci manualmente');
           setTimeout(() => setError(''), 3000);
         }
       } else {
-        // Svuota i campi se la risposta non contiene dati
+        const emptyAddress: OrderAddress = {
+          firstName: '',
+          lastName: '',
+          company: '',
+          address1: '',
+          address2: '',
+          city: '',
+          state: '',
+          postalCode: '',
+          country: 'Italy',
+          phone: ''
+        };
+
         setFormData(prev => ({
           ...prev,
-          shippingAddress: {
-            name: '',
-            street: '',
-            city: '',
-            postalCode: '',
-            country: 'Italia'
-          },
-          billingAddress: {
-            name: '',
-            street: '',
-            city: '',
-            postalCode: '',
-            country: 'Italia'
-          }
+          shippingAddress: emptyAddress,
+          billingAddress: emptyAddress
         }));
 
         setError('Nessun indirizzo precedente trovato per questo cliente - inserisci manualmente');
         setTimeout(() => setError(''), 3000);
       }
     } catch (error) {
-      // Svuota i campi in caso di errore
+      const emptyAddress: OrderAddress = {
+        firstName: '',
+        lastName: '',
+        company: '',
+        address1: '',
+        address2: '',
+        city: '',
+        state: '',
+        postalCode: '',
+        country: 'Italy',
+        phone: ''
+      };
+
       setFormData(prev => ({
         ...prev,
-        shippingAddress: {
-          name: '',
-          street: '',
-          city: '',
-          postalCode: '',
-          country: 'Italia'
-        },
-        billingAddress: {
-          name: '',
-          street: '',
-          city: '',
-          postalCode: '',
-          country: 'Italia'
-        }
+        shippingAddress: emptyAddress,
+        billingAddress: emptyAddress
       }));
 
       setError('Nessun indirizzo precedente trovato per questo cliente - inserisci manualmente');
@@ -400,13 +434,27 @@ const OrderCreatePage: React.FC = () => {
       if (formData.items.length === 0) {
         throw new Error('Aggiungi almeno un prodotto all\'ordine');
       }
-      if (!formData.shippingAddress.name.trim() || !formData.shippingAddress.street.trim() ||
-          !formData.shippingAddress.city.trim() || !formData.shippingAddress.postalCode.trim()) {
+      if (!formData.shippingAddress.firstName.trim() || !formData.shippingAddress.lastName.trim() ||
+          !formData.shippingAddress.address1.trim() || !formData.shippingAddress.city.trim() ||
+          !formData.shippingAddress.postalCode.trim()) {
         throw new Error('Completa tutti i campi obbligatori dell\'indirizzo di spedizione');
       }
 
       const subtotal = calculateSubtotal();
       const totalAmount = calculateTotal();
+
+      // Addresses are already in the unified format, just ensure required fields
+      const shippingAddress = {
+        ...formData.shippingAddress,
+        state: formData.shippingAddress.state || formData.shippingAddress.city || 'IT'
+      };
+
+      const billingAddress = (formData.billingAddress.firstName.trim() || formData.billingAddress.lastName.trim())
+        ? {
+            ...formData.billingAddress,
+            state: formData.billingAddress.state || formData.billingAddress.city || 'IT'
+          }
+        : shippingAddress;
 
       const orderData = {
         userId: formData.userId,
@@ -423,12 +471,8 @@ const OrderCreatePage: React.FC = () => {
         taxAmount: formData.taxAmount,
         discountAmount: formData.discountAmount,
         totalAmount,
-        shippingAddress: JSON.stringify(formData.shippingAddress),
-        billingAddress: JSON.stringify(
-          formData.billingAddress.name.trim()
-            ? formData.billingAddress
-            : formData.shippingAddress
-        ),
+        shippingAddress,
+        billingAddress,
         notes: formData.notes,
         status: 'PENDING',
         paymentStatus: 'PENDING'
@@ -673,26 +717,67 @@ const OrderCreatePage: React.FC = () => {
                       <h4 className="text-sm font-medium text-gray-900 mb-3">Indirizzo di Spedizione *</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input
-                          label="Nome completo *"
+                          label="Nome *"
                           type="text"
-                          value={formData.shippingAddress.name}
+                          value={formData.shippingAddress.firstName}
                           onChange={(e) => setFormData(prev => ({
                             ...prev,
-                            shippingAddress: { ...prev.shippingAddress, name: e.target.value }
+                            shippingAddress: { ...prev.shippingAddress, firstName: e.target.value }
                           }))}
-                          placeholder="Nome e cognome"
+                          placeholder="Nome"
                           required
                         />
                         <Input
-                          label="Via e numero civico *"
+                          label="Cognome *"
                           type="text"
-                          value={formData.shippingAddress.street}
+                          value={formData.shippingAddress.lastName}
                           onChange={(e) => setFormData(prev => ({
                             ...prev,
-                            shippingAddress: { ...prev.shippingAddress, street: e.target.value }
+                            shippingAddress: { ...prev.shippingAddress, lastName: e.target.value }
+                          }))}
+                          placeholder="Cognome"
+                          required
+                        />
+                        <Input
+                          label="Azienda"
+                          type="text"
+                          value={formData.shippingAddress.company}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            shippingAddress: { ...prev.shippingAddress, company: e.target.value }
+                          }))}
+                          placeholder="Nome azienda (opzionale)"
+                        />
+                        <Input
+                          label="Telefono"
+                          type="text"
+                          value={formData.shippingAddress.phone}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            shippingAddress: { ...prev.shippingAddress, phone: e.target.value }
+                          }))}
+                          placeholder="Numero di telefono (opzionale)"
+                        />
+                        <Input
+                          label="Indirizzo *"
+                          type="text"
+                          value={formData.shippingAddress.address1}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            shippingAddress: { ...prev.shippingAddress, address1: e.target.value }
                           }))}
                           placeholder="Via, numero civico"
                           required
+                        />
+                        <Input
+                          label="Indirizzo (riga 2)"
+                          type="text"
+                          value={formData.shippingAddress.address2}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            shippingAddress: { ...prev.shippingAddress, address2: e.target.value }
+                          }))}
+                          placeholder="Appartamento, scala, ecc. (opzionale)"
                         />
                         <Input
                           label="Città *"
@@ -706,6 +791,16 @@ const OrderCreatePage: React.FC = () => {
                           required
                         />
                         <Input
+                          label="Provincia"
+                          type="text"
+                          value={formData.shippingAddress.state}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            shippingAddress: { ...prev.shippingAddress, state: e.target.value }
+                          }))}
+                          placeholder="Provincia (opzionale)"
+                        />
+                        <Input
                           label="CAP *"
                           type="text"
                           value={formData.shippingAddress.postalCode}
@@ -716,18 +811,16 @@ const OrderCreatePage: React.FC = () => {
                           placeholder="00000"
                           required
                         />
-                        <div className="md:col-span-2">
-                          <Input
-                            label="Paese"
-                            type="text"
-                            value={formData.shippingAddress.country}
-                            onChange={(e) => setFormData(prev => ({
-                              ...prev,
-                              shippingAddress: { ...prev.shippingAddress, country: e.target.value }
-                            }))}
-                            placeholder="Italia"
-                          />
-                        </div>
+                        <Input
+                          label="Paese"
+                          type="text"
+                          value={formData.shippingAddress.country}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            shippingAddress: { ...prev.shippingAddress, country: e.target.value }
+                          }))}
+                          placeholder="Italy"
+                        />
                       </div>
                     </div>
 
@@ -739,8 +832,9 @@ const OrderCreatePage: React.FC = () => {
                           <input
                             type="checkbox"
                             checked={
-                              formData.billingAddress.name === formData.shippingAddress.name &&
-                              formData.billingAddress.street === formData.shippingAddress.street &&
+                              formData.billingAddress.firstName === formData.shippingAddress.firstName &&
+                              formData.billingAddress.lastName === formData.shippingAddress.lastName &&
+                              formData.billingAddress.address1 === formData.shippingAddress.address1 &&
                               formData.billingAddress.city === formData.shippingAddress.city &&
                               formData.billingAddress.postalCode === formData.shippingAddress.postalCode
                             }
@@ -755,7 +849,18 @@ const OrderCreatePage: React.FC = () => {
                                 // Svuota l'indirizzo di fatturazione per permettere modifica
                                 setFormData(prev => ({
                                   ...prev,
-                                  billingAddress: { name: '', street: '', city: '', postalCode: '', country: 'Italia' }
+                                  billingAddress: {
+                                    firstName: '',
+                                    lastName: '',
+                                    company: '',
+                                    address1: '',
+                                    address2: '',
+                                    city: '',
+                                    state: '',
+                                    postalCode: '',
+                                    country: 'Italy',
+                                    phone: ''
+                                  }
                                 }));
                               }
                             }}
@@ -765,31 +870,72 @@ const OrderCreatePage: React.FC = () => {
                         </label>
                       </div>
                       {!(
-                        formData.billingAddress.name === formData.shippingAddress.name &&
-                        formData.billingAddress.street === formData.shippingAddress.street &&
+                        formData.billingAddress.firstName === formData.shippingAddress.firstName &&
+                        formData.billingAddress.lastName === formData.shippingAddress.lastName &&
+                        formData.billingAddress.address1 === formData.shippingAddress.address1 &&
                         formData.billingAddress.city === formData.shippingAddress.city &&
                         formData.billingAddress.postalCode === formData.shippingAddress.postalCode
                       ) && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <Input
-                            label="Nome completo"
+                            label="Nome"
                             type="text"
-                            value={formData.billingAddress.name}
+                            value={formData.billingAddress.firstName}
                             onChange={(e) => setFormData(prev => ({
                               ...prev,
-                              billingAddress: { ...prev.billingAddress, name: e.target.value }
+                              billingAddress: { ...prev.billingAddress, firstName: e.target.value }
                             }))}
-                            placeholder="Nome e cognome"
+                            placeholder="Nome"
                           />
                           <Input
-                            label="Via e numero civico"
+                            label="Cognome"
                             type="text"
-                            value={formData.billingAddress.street}
+                            value={formData.billingAddress.lastName}
                             onChange={(e) => setFormData(prev => ({
                               ...prev,
-                              billingAddress: { ...prev.billingAddress, street: e.target.value }
+                              billingAddress: { ...prev.billingAddress, lastName: e.target.value }
+                            }))}
+                            placeholder="Cognome"
+                          />
+                          <Input
+                            label="Azienda"
+                            type="text"
+                            value={formData.billingAddress.company}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              billingAddress: { ...prev.billingAddress, company: e.target.value }
+                            }))}
+                            placeholder="Nome azienda (opzionale)"
+                          />
+                          <Input
+                            label="Telefono"
+                            type="text"
+                            value={formData.billingAddress.phone}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              billingAddress: { ...prev.billingAddress, phone: e.target.value }
+                            }))}
+                            placeholder="Numero di telefono (opzionale)"
+                          />
+                          <Input
+                            label="Indirizzo"
+                            type="text"
+                            value={formData.billingAddress.address1}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              billingAddress: { ...prev.billingAddress, address1: e.target.value }
                             }))}
                             placeholder="Via, numero civico"
+                          />
+                          <Input
+                            label="Indirizzo (riga 2)"
+                            type="text"
+                            value={formData.billingAddress.address2}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              billingAddress: { ...prev.billingAddress, address2: e.target.value }
+                            }))}
+                            placeholder="Appartamento, scala, ecc. (opzionale)"
                           />
                           <Input
                             label="Città"
@@ -802,6 +948,16 @@ const OrderCreatePage: React.FC = () => {
                             placeholder="Città"
                           />
                           <Input
+                            label="Provincia"
+                            type="text"
+                            value={formData.billingAddress.state}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              billingAddress: { ...prev.billingAddress, state: e.target.value }
+                            }))}
+                            placeholder="Provincia (opzionale)"
+                          />
+                          <Input
                             label="CAP"
                             type="text"
                             value={formData.billingAddress.postalCode}
@@ -811,18 +967,16 @@ const OrderCreatePage: React.FC = () => {
                             }))}
                             placeholder="00000"
                           />
-                          <div className="md:col-span-2">
-                            <Input
-                              label="Paese"
-                              type="text"
-                              value={formData.billingAddress.country}
-                              onChange={(e) => setFormData(prev => ({
-                                ...prev,
-                                billingAddress: { ...prev.billingAddress, country: e.target.value }
-                              }))}
-                              placeholder="Italia"
-                            />
-                          </div>
+                          <Input
+                            label="Paese"
+                            type="text"
+                            value={formData.billingAddress.country}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              billingAddress: { ...prev.billingAddress, country: e.target.value }
+                            }))}
+                            placeholder="Italy"
+                          />
                         </div>
                       )}
                     </div>

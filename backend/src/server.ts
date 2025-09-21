@@ -133,9 +133,37 @@ app.use(responseLoggingMiddleware());
 app.use(securityLoggingMiddleware());
 app.use(userActivityLoggingMiddleware());
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
+// Body parsing middleware with enhanced error handling
+app.use(express.json({
+  limit: '10mb',
+  verify: (req: any, res, buf, encoding) => {
+    // Store raw body for debugging if needed
+    req.rawBody = buf;
+  }
+}));
+
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Enhanced JSON parsing error handler
+app.use((error: any, req: any, res: Response, next: NextFunction) => {
+  if (error instanceof SyntaxError && 'body' in error && error.status === 400) {
+    logger.error('JSON parsing error', {
+      message: error.message,
+      url: req.url,
+      method: req.method,
+      contentType: req.headers['content-type'],
+      rawBody: req.rawBody ? req.rawBody.toString('utf8', 0, 200) : 'No body', // First 200 chars
+    });
+
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid JSON format',
+      error: 'Bad JSON syntax - check for invalid escape characters or malformed JSON',
+      timestamp: new Date().toISOString()
+    });
+  }
+  next(error);
+});
 
 // ==========================================
 // ROUTES CONFIGURATION
