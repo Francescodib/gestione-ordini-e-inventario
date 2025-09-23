@@ -5,6 +5,8 @@
 
 import { sequelize } from '../config/sequelize';
 import { User, UserRole } from './User';
+import { UserAddress, AddressType } from './UserAddress';
+import { AuditLog, AuditAction, ResourceType } from './AuditLog';
 import { Category } from './Category';
 import { Product, ProductStatus } from './Product';
 import { Order, OrderStatus, PaymentStatus } from './Order';
@@ -18,6 +20,20 @@ const defineAssociations = () => {
   // User associations
   User.hasMany(Order, { foreignKey: 'userId', as: 'orders' });
   User.hasOne(UserAvatar, { foreignKey: 'userId', as: 'userAvatar' });
+  User.hasMany(UserAddress, { foreignKey: 'userId', as: 'addresses' });
+  User.hasMany(AuditLog, { foreignKey: 'userId', as: 'auditLogs' });
+  User.hasMany(AuditLog, { foreignKey: 'targetUserId', as: 'targetAuditLogs' });
+  User.hasMany(AuditLog, { foreignKey: 'createdBy', as: 'createdAuditLogs' });
+
+  // UserAddress associations
+  UserAddress.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+  UserAddress.hasMany(Order, { foreignKey: 'shippingAddressId', as: 'shippingOrders' });
+  UserAddress.hasMany(Order, { foreignKey: 'billingAddressId', as: 'billingOrders' });
+
+  // AuditLog associations
+  AuditLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+  AuditLog.belongsTo(User, { foreignKey: 'targetUserId', as: 'targetUser' });
+  AuditLog.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
   // Category associations
   Category.belongsTo(Category, { foreignKey: 'parentId', as: 'parent' });
@@ -32,6 +48,8 @@ const defineAssociations = () => {
   // Order associations
   Order.belongsTo(User, { foreignKey: 'userId', as: 'user' });
   Order.hasMany(OrderItem, { foreignKey: 'orderId', as: 'items' });
+  Order.belongsTo(UserAddress, { foreignKey: 'shippingAddressId', as: 'shippingAddressRef' });
+  Order.belongsTo(UserAddress, { foreignKey: 'billingAddressId', as: 'billingAddressRef' });
 
   // OrderItem associations
   OrderItem.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
@@ -52,6 +70,11 @@ export {
   sequelize,
   User,
   UserRole,
+  UserAddress,
+  AddressType,
+  AuditLog,
+  AuditAction,
+  ResourceType,
   Category,
   Product,
   ProductStatus,
@@ -66,6 +89,8 @@ export {
 
 // Export model attribute interfaces
 export type { UserAttributes, UserCreationAttributes } from './User';
+export type { UserAddressAttributes, UserAddressCreationAttributes } from './UserAddress';
+export type { AuditLogAttributes, AuditLogCreationAttributes } from './AuditLog';
 export type { CategoryAttributes, CategoryCreationAttributes } from './Category';
 export type { ProductAttributes, ProductCreationAttributes } from './Product';
 export type { OrderAttributes, OrderCreationAttributes } from './Order';

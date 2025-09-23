@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { authService } from '../services/api';
-import type { User } from '../services/api';
+import { authService, addressService } from '../services/api';
+import type { User, UserAddress, CreateAddressRequest, UpdateAddressRequest } from '../services/api';
 import type { AvatarUpload as AvatarUploadType } from '../services/api';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
@@ -10,6 +10,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Input from '../components/Input';
 import ErrorMessage from '../components/ErrorMessage';
 import AvatarUpload from '../components/AvatarUpload';
+import AddressModal from '../components/AddressModal';
 import { useAuth } from '../contexts/AuthContext';
 
 const UserDetailPage: React.FC = () => {
@@ -22,16 +23,16 @@ const UserDetailPage: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [addresses, setAddresses] = useState<UserAddress[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<UserAddress | null>(null);
+  const [addressLoading, setAddressLoading] = useState(false);
   const [editFormData, setEditFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     username: '',
-    phone: '',
-    streetAddress: '',
-    city: '',
-    postalCode: '',
-    country: ''
+    phone: ''
   });
   const [selectedRole, setSelectedRole] = useState<'CLIENT' | 'MANAGER' | 'ADMIN'>('CLIENT');
 
@@ -40,6 +41,12 @@ const UserDetailPage: React.FC = () => {
       loadUser(id);
     }
   }, [id]);
+
+  useEffect(() => {
+    if (user?.role === 'CLIENT') {
+      loadAddresses();
+    }
+  }, [user]);
 
   const loadUser = async (userId: string) => {
     try {
@@ -55,11 +62,7 @@ const UserDetailPage: React.FC = () => {
           lastName: response.data.lastName || '',
           email: response.data.email,
           username: response.data.username,
-          phone: response.data.phone || '',
-          streetAddress: response.data.streetAddress || '',
-          city: response.data.city || '',
-          postalCode: response.data.postalCode || '',
-          country: response.data.country || ''
+          phone: response.data.phone || ''
         });
         setSelectedRole(response.data.role as 'CLIENT' | 'MANAGER' | 'ADMIN');
       } else {
@@ -72,6 +75,118 @@ const UserDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadAddresses = async () => {
+    if (!user || user.role !== 'CLIENT') return;
+
+    try {
+      setAddressLoading(true);
+      const response = await addressService.getUserAddresses(user.id.toString());
+
+      if (response.success && response.data) {
+        setAddresses(response.data);
+      }
+    } catch (err) {
+      console.error('Error loading addresses:', err);
+    } finally {
+      setAddressLoading(false);
+    }
+  };
+
+  const handleCreateAddress = async (addressData: CreateAddressRequest) => {
+    if (!user) return;
+
+    try {
+      const response = await addressService.createAddress(user.id.toString(), addressData);
+
+      if (response.success && response.data) {
+        setSuccess('Indirizzo creato con successo');
+        await loadAddresses();
+        setShowAddressModal(false);
+        setSelectedAddress(null);
+      } else {
+        setError('Errore nella creazione dell\'indirizzo');
+      }
+    } catch (err) {
+      console.error('Error creating address:', err);
+      setError('Errore nella creazione dell\'indirizzo');
+    }
+  };
+
+  const handleUpdateAddress = async (addressData: UpdateAddressRequest) => {
+    if (!user || !selectedAddress) return;
+
+    try {
+      const response = await addressService.updateAddress(
+        user.id.toString(),
+        selectedAddress.id.toString(),
+        addressData
+      );
+
+      if (response.success && response.data) {
+        setSuccess('Indirizzo aggiornato con successo');
+        await loadAddresses();
+        setShowAddressModal(false);
+        setSelectedAddress(null);
+      } else {
+        setError('Errore nell\'aggiornamento dell\'indirizzo');
+      }
+    } catch (err) {
+      console.error('Error updating address:', err);
+      setError('Errore nell\'aggiornamento dell\'indirizzo');
+    }
+  };
+
+  const handleDeleteAddress = async (addressId: number) => {
+    if (!user) return;
+
+    if (!confirm('Sei sicuro di voler eliminare questo indirizzo?')) {
+      return;
+    }
+
+    try {
+      const response = await addressService.deleteAddress(
+        user.id.toString(),
+        addressId.toString()
+      );
+
+      if (response.success) {
+        setSuccess('Indirizzo eliminato con successo');
+        await loadAddresses();
+      } else {
+        setError('Errore nell\'eliminazione dell\'indirizzo');
+      }
+    } catch (err) {
+      console.error('Error deleting address:', err);
+      setError('Errore nell\'eliminazione dell\'indirizzo');
+    }
+  };
+
+  const handleSetDefaultAddress = async (addressId: number) => {
+    if (!user) return;
+
+    try {
+      const response = await addressService.setDefaultAddress(
+        user.id.toString(),
+        addressId.toString()
+      );
+
+      if (response.success) {
+        setSuccess('Indirizzo predefinito aggiornato');
+        await loadAddresses();
+      } else {
+        setError('Errore nell\'impostazione dell\'indirizzo predefinito');
+      }
+    } catch (err) {
+      console.error('Error setting default address:', err);
+      setError('Errore nell\'impostazione dell\'indirizzo predefinito');
+    }
+  };
+
+  const openAddressModal = (address?: UserAddress) => {
+    setSelectedAddress(address || null);
+    setShowAddressModal(true);
   };
 
   // Only admins can access this page
@@ -180,6 +295,14 @@ const UserDetailPage: React.FC = () => {
 
       if (response.success && response.data) {
         setUser(response.data);
+        // Refresh form data with updated user data
+        setEditFormData({
+          firstName: response.data.firstName || '',
+          lastName: response.data.lastName || '',
+          email: response.data.email,
+          username: response.data.username,
+          phone: response.data.phone || ''
+        });
         setSuccess('Utente aggiornato con successo');
         setShowEditModal(false);
       } else {
@@ -265,7 +388,7 @@ const UserDetailPage: React.FC = () => {
   const handleDeleteUser = async () => {
     if (!user) return;
 
-    if (!confirm('Sei sicuro di voler eliminare questo utente? Questa azione disattiverà l\'account.')) {
+    if (!confirm('Sei sicuro di voler disattivare questo utente? L\'account verrà disattivato ma mantenuto per preservare l\'integrità dei dati degli ordini associati.')) {
       return;
     }
 
@@ -276,10 +399,10 @@ const UserDetailPage: React.FC = () => {
       const response = await authService.deleteUser(user.id);
 
       if (response.success) {
-        setSuccess('Utente eliminato con successo');
+        setSuccess('Utente disattivato con successo. L\'account rimane nel sistema per preservare l\'integrità dei dati.');
         setTimeout(() => navigate('/users'), 2000);
       } else {
-        setError('Errore nell\'eliminazione dell\'utente');
+        setError('Errore nella disattivazione dell\'utente');
       }
     } catch (err: unknown) {
       console.error('Error deleting user:', err);
@@ -430,42 +553,107 @@ const UserDetailPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Address Fields - Only for CLIENT users */}
-                {user.role === 'CLIENT' && (
-                  <>
-                    {user.phone && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Telefono</label>
-                        <p className="mt-1 text-sm text-gray-900">{user.phone}</p>
-                      </div>
-                    )}
-                    {user.streetAddress && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Indirizzo</label>
-                        <p className="mt-1 text-sm text-gray-900">{user.streetAddress}</p>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-4">
-                      {user.city && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Città</label>
-                          <p className="mt-1 text-sm text-gray-900">{user.city}</p>
-                        </div>
-                      )}
-                      {user.postalCode && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">CAP</label>
-                          <p className="mt-1 text-sm text-gray-900">{user.postalCode}</p>
-                        </div>
-                      )}
+                {/* Contact Information */}
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Informazioni di Contatto</h4>
+                  {user.phone ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Telefono</label>
+                      <p className="mt-1 text-sm text-gray-900">{user.phone}</p>
                     </div>
-                    {user.country && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Paese</label>
-                        <p className="mt-1 text-sm text-gray-900">{user.country}</p>
+                  ) : (
+                    <p className="text-sm text-gray-500">Nessun numero di telefono configurato</p>
+                  )}
+                </div>
+
+                {/* Address Management - Only for CLIENT users */}
+                {user.role === 'CLIENT' && (
+                  <div className="border-t pt-4 mt-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-sm font-medium text-gray-900">Indirizzi Cliente</h4>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => openAddressModal()}
+                      >
+                        Aggiungi Indirizzo
+                      </Button>
+                    </div>
+
+                    {addressLoading ? (
+                      <div className="flex justify-center py-4">
+                        <LoadingSpinner size="sm" />
+                      </div>
+                    ) : addresses.length > 0 ? (
+                      <div className="space-y-3">
+                        {addresses.map((address) => (
+                          <div key={address.id} className="bg-gray-50 border border-gray-200 rounded-md p-3">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                    address.addressType === 'SHIPPING'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-purple-100 text-purple-800'
+                                  }`}>
+                                    {address.addressType === 'SHIPPING' ? 'Spedizione' : 'Fatturazione'}
+                                  </span>
+                                  {address.isDefault && (
+                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                                      Predefinito
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-900 font-medium">{address.streetAddress}</p>
+                                <p className="text-sm text-gray-600">
+                                  {address.city}, {address.postalCode} {address.state && `(${address.state})`}
+                                </p>
+                                <p className="text-sm text-gray-600">{address.country}</p>
+                              </div>
+                              <div className="flex items-center space-x-2 ml-4">
+                                {!address.isDefault && (
+                                  <button
+                                    onClick={() => handleSetDefaultAddress(address.id)}
+                                    className="text-xs text-blue-600 hover:text-blue-800"
+                                  >
+                                    Imposta come predefinito
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => openAddressModal(address)}
+                                  className="text-xs text-gray-600 hover:text-gray-800"
+                                >
+                                  Modifica
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteAddress(address.id)}
+                                  className="text-xs text-red-600 hover:text-red-800"
+                                >
+                                  Elimina
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-4 text-center">
+                        <svg className="mx-auto h-8 w-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <p className="text-sm text-gray-500">Nessun indirizzo configurato</p>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => openAddressModal()}
+                          className="mt-2"
+                        >
+                          Aggiungi il primo indirizzo
+                        </Button>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             </div>
@@ -597,47 +785,13 @@ const UserDetailPage: React.FC = () => {
                     onChange={(e) => setEditFormData({...editFormData, username: e.target.value})}
                     fullWidth
                   />
-
-                  {/* Address fields - Only for CLIENT users */}
-                  {user && user.role === 'CLIENT' && (
-                    <>
-                      <div className="border-t pt-4">
-                        <h4 className="text-sm font-medium text-gray-900 mb-3">Informazioni di Contatto</h4>
-                        <div className="space-y-4">
-                          <Input
-                            label="Telefono"
-                            value={editFormData.phone}
-                            onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
-                            fullWidth
-                          />
-                          <Input
-                            label="Indirizzo"
-                            value={editFormData.streetAddress}
-                            onChange={(e) => setEditFormData({...editFormData, streetAddress: e.target.value})}
-                            fullWidth
-                          />
-                          <div className="grid grid-cols-2 gap-3">
-                            <Input
-                              label="Città"
-                              value={editFormData.city}
-                              onChange={(e) => setEditFormData({...editFormData, city: e.target.value})}
-                            />
-                            <Input
-                              label="CAP"
-                              value={editFormData.postalCode}
-                              onChange={(e) => setEditFormData({...editFormData, postalCode: e.target.value})}
-                            />
-                          </div>
-                          <Input
-                            label="Paese"
-                            value={editFormData.country}
-                            onChange={(e) => setEditFormData({...editFormData, country: e.target.value})}
-                            fullWidth
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  <Input
+                    label="Telefono"
+                    value={editFormData.phone}
+                    onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                    fullWidth
+                    placeholder="Es. +39 333 1234567"
+                  />
                 </div>
                 <div className="flex space-x-3 mt-6">
                   <Button variant="secondary" onClick={() => setShowEditModal(false)}>
@@ -700,6 +854,21 @@ const UserDetailPage: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Address Modal */}
+        {showAddressModal && (
+          <AddressModal
+            isOpen={showAddressModal}
+            onClose={() => {
+              setShowAddressModal(false);
+              setSelectedAddress(null);
+            }}
+            onSave={selectedAddress ? handleUpdateAddress : handleCreateAddress}
+            address={selectedAddress}
+            loading={addressLoading}
+            title={selectedAddress ? 'Modifica Indirizzo' : 'Nuovo Indirizzo'}
+          />
         )}
         </div>
       </div>

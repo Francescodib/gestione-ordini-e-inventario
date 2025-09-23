@@ -39,12 +39,10 @@ export const createUserSchema = Joi.object({
   password: Joi.string()
     .min(6)
     .max(100)
-    .pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)'))
     .required()
     .messages({
       'string.min': 'Password must be at least 6 characters long',
       'string.max': 'Password cannot exceed 100 characters',
-      'string.pattern.base': 'Password must contain at least one lowercase letter, one uppercase letter, and one number',
       'any.required': 'Password is required'
     }),
 
@@ -60,12 +58,12 @@ export const createUserSchema = Joi.object({
     .trim()
     .min(2)
     .max(50)
-    .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s]+$'))
+    .pattern(new RegExp('^[a-zA-ZÀ-ÿ0-9\\s]+$'))
     .required()
     .messages({
       'string.min': 'First name must be at least 2 characters long',
       'string.max': 'First name cannot exceed 50 characters',
-      'string.pattern.base': 'First name can only contain letters and spaces',
+      'string.pattern.base': 'First name can only contain letters, numbers, and spaces',
       'any.required': 'First name is required'
     }),
 
@@ -73,12 +71,12 @@ export const createUserSchema = Joi.object({
     .trim()
     .min(2)
     .max(50)
-    .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s]+$'))
+    .pattern(new RegExp('^[a-zA-ZÀ-ÿ0-9\\s]+$'))
     .required()
     .messages({
       'string.min': 'Last name must be at least 2 characters long',
       'string.max': 'Last name cannot exceed 50 characters',
-      'string.pattern.base': 'Last name can only contain letters and spaces',
+      'string.pattern.base': 'Last name can only contain letters, numbers, and spaces',
       'any.required': 'Last name is required'
     }),
 
@@ -94,6 +92,7 @@ export const createUserSchema = Joi.object({
     .pattern(new RegExp('^[+]?[0-9\\s\\-()]+$'))
     .min(5)
     .max(20)
+    .allow('', null)
     .optional()
     .messages({
       'string.pattern.base': 'Phone number format is invalid',
@@ -105,6 +104,7 @@ export const createUserSchema = Joi.object({
     .trim()
     .min(5)
     .max(255)
+    .allow('', null)
     .optional()
     .messages({
       'string.min': 'Street address must be at least 5 characters long',
@@ -116,6 +116,7 @@ export const createUserSchema = Joi.object({
     .min(2)
     .max(100)
     .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s\\-\']+$'))
+    .allow('', null)
     .optional()
     .messages({
       'string.min': 'City must be at least 2 characters long',
@@ -128,6 +129,7 @@ export const createUserSchema = Joi.object({
     .pattern(new RegExp('^[0-9A-Za-z\\s\\-]+$'))
     .min(3)
     .max(20)
+    .allow('', null)
     .optional()
     .messages({
       'string.pattern.base': 'Postal code format is invalid',
@@ -140,6 +142,7 @@ export const createUserSchema = Joi.object({
     .min(2)
     .max(100)
     .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s]+$'))
+    .allow('', null)
     .optional()
     .messages({
       'string.min': 'Country must be at least 2 characters long',
@@ -190,14 +193,14 @@ export const updateUserSchema = Joi.object({
     .trim()
     .min(2)
     .max(50)
-    .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s]+$'))
+    .pattern(new RegExp('^[a-zA-ZÀ-ÿ0-9\\s]+$'))
     .optional(),
 
   lastName: Joi.string()
     .trim()
     .min(2)
     .max(50)
-    .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s]+$'))
+    .pattern(new RegExp('^[a-zA-ZÀ-ÿ0-9\\s]+$'))
     .optional(),
 
   role: Joi.string()
@@ -212,6 +215,7 @@ export const updateUserSchema = Joi.object({
     .pattern(new RegExp('^[+]?[0-9\\s\\-()]+$'))
     .min(5)
     .max(20)
+    .allow('', null)
     .optional()
     .messages({
       'string.pattern.base': 'Phone number format is invalid',
@@ -223,6 +227,7 @@ export const updateUserSchema = Joi.object({
     .trim()
     .min(5)
     .max(255)
+    .allow('', null)
     .optional()
     .messages({
       'string.min': 'Street address must be at least 5 characters long',
@@ -234,6 +239,7 @@ export const updateUserSchema = Joi.object({
     .min(2)
     .max(100)
     .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s\\-\']+$'))
+    .allow('', null)
     .optional()
     .messages({
       'string.min': 'City must be at least 2 characters long',
@@ -246,6 +252,7 @@ export const updateUserSchema = Joi.object({
     .pattern(new RegExp('^[0-9A-Za-z\\s\\-]+$'))
     .min(3)
     .max(20)
+    .allow('', null)
     .optional()
     .messages({
       'string.pattern.base': 'Postal code format is invalid',
@@ -258,6 +265,7 @@ export const updateUserSchema = Joi.object({
     .min(2)
     .max(100)
     .pattern(new RegExp('^[a-zA-ZÀ-ÿ\\s]+$'))
+    .allow('', null)
     .optional()
     .messages({
       'string.min': 'Country must be at least 2 characters long',
@@ -728,9 +736,45 @@ export const createOrderSchema = Joi.object({
       'number.positive': 'Total amount must be a positive number'
     }),
 
-  shippingAddress: shippingAddressSchema.required(),
+  // New address reference fields (preferred method)
+  shippingAddressId: Joi.number()
+    .integer()
+    .positive()
+    .optional()
+    .messages({
+      'number.integer': 'Shipping address ID must be a valid integer',
+      'number.positive': 'Shipping address ID must be positive'
+    }),
 
-  billingAddress: shippingAddressSchema.optional(),
+  billingAddressId: Joi.number()
+    .integer()
+    .positive()
+    .optional()
+    .messages({
+      'number.integer': 'Billing address ID must be a valid integer',
+      'number.positive': 'Billing address ID must be positive'
+    }),
+
+  // For admin users creating orders for clients
+  targetUserId: Joi.number()
+    .integer()
+    .positive()
+    .optional()
+    .messages({
+      'number.integer': 'Target user ID must be a valid integer',
+      'number.positive': 'Target user ID must be positive'
+    }),
+
+  // Legacy address fields (for backward compatibility)
+  shippingAddress: Joi.alternatives().try(
+    shippingAddressSchema,
+    Joi.string().max(2000) // Allow JSON string
+  ).optional(),
+
+  billingAddress: Joi.alternatives().try(
+    shippingAddressSchema,
+    Joi.string().max(2000) // Allow JSON string
+  ).optional(),
 
   notes: Joi.string()
     .trim()
@@ -764,6 +808,14 @@ export const createOrderSchema = Joi.object({
       'string.length': 'Currency must be a 3-letter code',
       'string.pattern.base': 'Currency must be a valid 3-letter code (e.g., EUR, USD)'
     })
+}).custom((value, helpers) => {
+  // Ensure either shippingAddressId or shippingAddress is provided
+  if (!value.shippingAddressId && !value.shippingAddress) {
+    return helpers.error('custom.shippingAddressRequired');
+  }
+  return value;
+}).messages({
+  'custom.shippingAddressRequired': 'Either shippingAddressId or shippingAddress must be provided'
 });
 
 /**
@@ -818,6 +870,39 @@ export const updateOrderSchema = Joi.object({
       'number.min': 'Total amount must be greater than or equal to 0'
     }),
 
+  shippingCost: Joi.number()
+    .min(0)
+    .precision(2)
+    .optional()
+    .messages({
+      'number.min': 'Shipping cost cannot be negative'
+    }),
+
+  taxAmount: Joi.number()
+    .min(0)
+    .precision(2)
+    .optional()
+    .messages({
+      'number.min': 'Tax amount cannot be negative'
+    }),
+
+  discountAmount: Joi.number()
+    .min(0)
+    .precision(2)
+    .optional()
+    .messages({
+      'number.min': 'Discount amount cannot be negative'
+    }),
+
+  currency: Joi.string()
+    .uppercase()
+    .length(3)
+    .optional()
+    .messages({
+      'string.length': 'Currency must be exactly 3 characters',
+      'string.uppercase': 'Currency must be uppercase'
+    }),
+
   items: Joi.array()
     .items(orderItemSchema.keys({
       id: Joi.number().optional() // Allow existing item IDs
@@ -830,6 +915,28 @@ export const updateOrderSchema = Joi.object({
       'array.max': 'Order cannot contain more than 50 items'
     }),
 
+  // New address reference fields (preferred method)
+  shippingAddressId: Joi.number()
+    .integer()
+    .positive()
+    .optional()
+    .allow(null)
+    .messages({
+      'number.integer': 'Shipping address ID must be a valid integer',
+      'number.positive': 'Shipping address ID must be positive'
+    }),
+
+  billingAddressId: Joi.number()
+    .integer()
+    .positive()
+    .optional()
+    .allow(null)
+    .messages({
+      'number.integer': 'Billing address ID must be a valid integer',
+      'number.positive': 'Billing address ID must be positive'
+    }),
+
+  // Legacy address fields (for backward compatibility)
   shippingAddress: Joi.alternatives().try(
     shippingAddressSchema,
     Joi.string().max(2000) // Allow JSON string

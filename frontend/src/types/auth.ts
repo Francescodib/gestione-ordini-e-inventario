@@ -10,10 +10,6 @@ export interface User {
   lastLogin?: Date | string;
   avatar?: string;
   phone?: string;
-  streetAddress?: string;
-  city?: string;
-  postalCode?: string;
-  country?: string;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -32,10 +28,14 @@ export interface RegisterRequest {
   confirmPassword: string;
   role?: 'CLIENT' | 'MANAGER' | 'ADMIN';
   phone?: string;
-  streetAddress?: string;
-  city?: string;
-  postalCode?: string;
-  country?: string;
+  address?: {
+    streetAddress: string;
+    city: string;
+    postalCode: string;
+    country: string;
+    state?: string;
+    addressType?: 'SHIPPING' | 'BILLING';
+  };
 }
 
 export interface AuthResponse {
@@ -55,10 +55,14 @@ export interface CreateUserRequest {
   confirmPassword: string;
   role: 'CLIENT' | 'MANAGER' | 'ADMIN';
   phone?: string;
-  streetAddress?: string;
-  city?: string;
-  postalCode?: string;
-  country?: string;
+  address?: {
+    streetAddress: string;
+    city: string;
+    postalCode: string;
+    country: string;
+    state?: string;
+    addressType?: 'SHIPPING' | 'BILLING';
+  };
 }
 
 export interface UpdateUserRequest {
@@ -69,17 +73,49 @@ export interface UpdateUserRequest {
   role?: 'CLIENT' | 'MANAGER' | 'ADMIN';
   isActive?: boolean;
   phone?: string;
+}
+
+// User Address types (for CLIENT users only)
+export interface UserAddress {
+  id: number;
+  userId: number;
+  streetAddress: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  state?: string;
+  addressType: 'SHIPPING' | 'BILLING';
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface CreateAddressRequest {
+  streetAddress: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  state?: string;
+  addressType?: 'SHIPPING' | 'BILLING';
+  isDefault?: boolean;
+}
+
+export interface UpdateAddressRequest {
   streetAddress?: string;
   city?: string;
   postalCode?: string;
   country?: string;
+  state?: string;
+  addressType?: 'SHIPPING' | 'BILLING';
+  isDefault?: boolean;
 }
 
 export interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (username: string, firstName: string, lastName: string, email: string, password: string, role?: 'CLIENT' | 'MANAGER' | 'ADMIN', addressData?: { phone?: string; streetAddress?: string; city?: string; postalCode?: string; country?: string }) => Promise<void>;
+  register: (userData: RegisterRequest) => Promise<void>;
   logout: () => void;
   loading: boolean;
   isAdmin: () => boolean;

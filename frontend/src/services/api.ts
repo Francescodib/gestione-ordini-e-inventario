@@ -1,5 +1,15 @@
 import axios from 'axios';
-import type { LoginRequest, RegisterRequest, AuthResponse, User } from '../types/auth';
+import type {
+  LoginRequest,
+  RegisterRequest,
+  AuthResponse,
+  User,
+  UserAddress,
+  CreateAddressRequest,
+  UpdateAddressRequest,
+  CreateUserRequest,
+  UpdateUserRequest
+} from '../types/auth';
 
 // Export User type for external use
 export type { User };
@@ -51,10 +61,23 @@ export interface Order {
   discountAmount: number;
   totalAmount: number;
   currency: string;
-  shippingAddress: string | Record<string, unknown>;
+  // New address reference fields (preferred method)
+  shippingAddressId?: number;
+  billingAddressId?: number;
+  // Legacy address fields (for backward compatibility)
+  shippingAddress?: string | Record<string, unknown>;
   billingAddress?: string | Record<string, unknown>;
+  // Address reference objects (populated by backend)
+  shippingAddressRef?: UserAddress;
+  billingAddressRef?: UserAddress;
   items: OrderItem[];
   user?: User;
+  notes?: string;
+  trackingNumber?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -69,6 +92,44 @@ export interface OrderItem {
   price: number;
   totalPrice: number;
   product?: Product;
+}
+
+// Order creation and update interfaces
+export interface CreateOrderRequest {
+  items: Array<{
+    productId: number;  // Changed from string to number
+    quantity: number;
+    unitPrice?: number; // Changed from price to unitPrice
+  }>;
+  // New address reference approach (preferred)
+  shippingAddressId?: number;
+  billingAddressId?: number;
+  // Legacy address approach (fallback)
+  shippingAddress?: Record<string, unknown>;
+  billingAddress?: Record<string, unknown>;
+  // For admin users creating orders for clients
+  targetUserId?: number;
+  notes?: string;
+  shippingCost?: number;
+  taxAmount?: number;
+  discountAmount?: number;
+  currency?: string;
+}
+
+export interface UpdateOrderRequest {
+  status?: Order['status'];
+  paymentStatus?: Order['paymentStatus'];
+  // Address updates
+  shippingAddressId?: number;
+  billingAddressId?: number;
+  shippingAddress?: Record<string, unknown>;
+  billingAddress?: Record<string, unknown>;
+  notes?: string;
+  trackingNumber?: string;
+  shippingCost?: number;
+  taxAmount?: number;
+  discountAmount?: number;
+  cancelReason?: string;
 }
 
 export interface SearchFilters {
@@ -203,7 +264,7 @@ export const authService = {
     return response.data;
   },
 
-  async updateUser(id: string, userData: Partial<User>): Promise<ApiResponse<User>> {
+  async updateUser(id: string, userData: UpdateUserRequest): Promise<ApiResponse<User>> {
     const response = await api.put(`/users/${id}`, userData);
     return response.data;
   },
@@ -223,7 +284,7 @@ export const authService = {
     return response.data;
   },
 
-  async updateUserRole(id: string, role: 'USER' | 'MANAGER' | 'ADMIN'): Promise<ApiResponse<User>> {
+  async updateUserRole(id: string, role: 'CLIENT' | 'MANAGER' | 'ADMIN'): Promise<ApiResponse<User>> {
     const response = await api.put(`/users/${id}`, { role });
     return response.data;
   },
@@ -233,8 +294,36 @@ export const authService = {
     return response.data;
   },
 
-  async getUserLastAddress(userId: string): Promise<ApiResponse<{ shippingAddress: any; billingAddress: any }>> {
-    const response = await api.get(`/users/${userId}/last-address`);
+  async createUser(userData: CreateUserRequest): Promise<ApiResponse<User>> {
+    const response = await api.post('/users', userData);
+    return response.data;
+  }
+};
+
+// Address Service for CLIENT users
+export const addressService = {
+  async getUserAddresses(userId: string): Promise<ApiResponse<UserAddress[]>> {
+    const response = await api.get(`/users/${userId}/addresses`);
+    return response.data;
+  },
+
+  async createAddress(userId: string, addressData: CreateAddressRequest): Promise<ApiResponse<UserAddress>> {
+    const response = await api.post(`/users/${userId}/addresses`, addressData);
+    return response.data;
+  },
+
+  async updateAddress(userId: string, addressId: string, addressData: UpdateAddressRequest): Promise<ApiResponse<UserAddress>> {
+    const response = await api.put(`/users/${userId}/addresses/${addressId}`, addressData);
+    return response.data;
+  },
+
+  async deleteAddress(userId: string, addressId: string): Promise<ApiResponse<void>> {
+    const response = await api.delete(`/users/${userId}/addresses/${addressId}`);
+    return response.data;
+  },
+
+  async setDefaultAddress(userId: string, addressId: string): Promise<ApiResponse<UserAddress>> {
+    const response = await api.post(`/users/${userId}/addresses/${addressId}/default`);
     return response.data;
   }
 };
@@ -302,8 +391,8 @@ export const categoryService = {
     return response.data;
   },
 
-  async getCategoryHierarchy(): Promise<ApiResponse<Category[]>> {
-    const response = await api.get('/categories/hierarchy');
+  async getCategoryTree(): Promise<ApiResponse<Category[]>> {
+    const response = await api.get('/categories/tree');
     return response.data;
   },
 
@@ -324,12 +413,12 @@ export const orderService = {
     return response.data;
   },
 
-  async createOrder(orderData: Partial<Order>): Promise<ApiResponse<Order>> {
+  async createOrder(orderData: CreateOrderRequest): Promise<ApiResponse<Order>> {
     const response = await api.post('/orders', orderData);
     return response.data;
   },
 
-  async updateOrder(id: string, orderData: Partial<Order>): Promise<ApiResponse<Order>> {
+  async updateOrder(id: string, orderData: UpdateOrderRequest): Promise<ApiResponse<Order>> {
     const response = await api.put(`/orders/${id}`, orderData);
     return response.data;
   },

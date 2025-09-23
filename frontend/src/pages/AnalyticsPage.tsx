@@ -121,7 +121,7 @@ const AnalyticsPage: React.FC = () => {
           byRole: {
             'ADMIN': userStats.adminUsers || 0,
             'MANAGER': userStats.managerUsers || 0,
-            'USER': userStats.regularUsers || 0
+            'CLIENT': userStats.regularUsers || 0
           }
         };
       }
@@ -417,7 +417,7 @@ const AnalyticsPage: React.FC = () => {
                             role === 'MANAGER' ? 'bg-blue-100 text-blue-800' :
                             'bg-green-100 text-green-800'
                           }`}>
-                            {role === 'ADMIN' ? 'Admin' : role === 'MANAGER' ? 'Manager' : 'Utente'}
+                            {role === 'ADMIN' ? 'Admin' : role === 'MANAGER' ? 'Manager' : 'Cliente'}
                           </span>
                         </div>
                         <span className="text-sm font-medium text-gray-900">{count}</span>
@@ -552,7 +552,7 @@ const AnalyticsPage: React.FC = () => {
                 type="bar"
                 title="Utenti per Ruolo"
                 data={Object.entries(analytics.users.byRole).map(([role, count]) => ({
-                  label: role === 'ADMIN' ? 'Admin' : role === 'MANAGER' ? 'Manager' : 'Utente',
+                  label: role === 'ADMIN' ? 'Admin' : role === 'MANAGER' ? 'Manager' : 'Cliente',
                   value: count,
                   color: role === 'ADMIN' ? '#EF4444' : role === 'MANAGER' ? '#3B82F6' : '#10B981'
                 }))}

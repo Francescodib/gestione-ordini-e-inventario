@@ -8,6 +8,18 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import ErrorMessage from '../components/ErrorMessage';
 
+// Inline temporary interface to avoid import issues
+interface UnifiedAddress {
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+  streetAddress: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  phone?: string;
+}
+
 interface OrderEditItem {
   id?: number;
   productId: string;
@@ -25,20 +37,8 @@ interface OrderEditFormData {
   trackingNumber: string;
   notes: string;
   items: OrderEditItem[];
-  shippingAddress: {
-    name: string;
-    street: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
-  billingAddress: {
-    name: string;
-    street: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
+  shippingAddress: UnifiedAddress;
+  billingAddress: UnifiedAddress;
 }
 
 const OrderEditPage: React.FC = () => {
@@ -65,15 +65,13 @@ const OrderEditPage: React.FC = () => {
     notes: '',
     items: [],
     shippingAddress: {
-      name: '',
-      street: '',
+      streetAddress: '',
       city: '',
       postalCode: '',
       country: 'Italia'
     },
     billingAddress: {
-      name: '',
-      street: '',
+      streetAddress: '',
       city: '',
       postalCode: '',
       country: 'Italia'
@@ -176,46 +174,53 @@ const OrderEditPage: React.FC = () => {
     }
   };
 
-  const formatAddressForEdit = (addressString: string | Record<string, unknown>) => {
+  const formatAddressForEdit = (addressString: string | Record<string, unknown>): UnifiedAddress => {
     try {
-      if (typeof addressString === 'object' && addressString !== null) {
-        const addr = addressString as any;
-        return {
-          name: addr.name || '',
-          street: addr.street || '',
-          city: addr.city || '',
-          postalCode: addr.postalCode || '',
-          country: addr.country || 'Italia'
-        };
-      }
+      let address: any = null;
 
       if (typeof addressString === 'string') {
-        const parsed = JSON.parse(addressString);
-        return {
-          name: parsed.name || '',
-          street: parsed.street || '',
-          city: parsed.city || '',
-          postalCode: parsed.postalCode || '',
-          country: parsed.country || 'Italia'
-        };
+        address = JSON.parse(addressString);
+      } else if (typeof addressString === 'object' && addressString !== null) {
+        address = addressString;
       }
 
-      return {
-        name: '',
-        street: '',
-        city: '',
-        postalCode: '',
-        country: 'Italia'
-      };
+      if (address) {
+        // Convert legacy format to unified
+        if (address.address1) {
+          return {
+            firstName: address.firstName || '',
+            lastName: address.lastName || '',
+            company: address.company,
+            streetAddress: address.address1 || '',
+            city: address.city || '',
+            postalCode: address.postalCode || '',
+            country: address.country || 'Italia',
+            phone: address.phone
+          };
+        } else if (address.streetAddress) {
+          // Already in unified format
+          return {
+            firstName: address.firstName || '',
+            lastName: address.lastName || '',
+            company: address.company,
+            streetAddress: address.streetAddress || '',
+            city: address.city || '',
+            postalCode: address.postalCode || '',
+            country: address.country || 'Italia',
+            phone: address.phone
+          };
+        }
+      }
     } catch (error) {
-      return {
-        name: '',
-        street: '',
-        city: '',
-        postalCode: '',
-        country: 'Italia'
-      };
+      console.log('Address parse error:', error);
     }
+
+    return {
+      streetAddress: '',
+      city: '',
+      postalCode: '',
+      country: 'Italia'
+    };
   };
 
 
@@ -247,8 +252,30 @@ const OrderEditPage: React.FC = () => {
           price: item.price,
           totalPrice: item.totalPrice
         })),
-        shippingAddress: JSON.stringify(formData.shippingAddress),
-        billingAddress: JSON.stringify(formData.billingAddress)
+        shippingAddress: {
+          firstName: formData.shippingAddress.firstName || '',
+          lastName: formData.shippingAddress.lastName || '',
+          company: formData.shippingAddress.company || '',
+          address1: formData.shippingAddress.streetAddress,
+          address2: '',
+          city: formData.shippingAddress.city,
+          state: formData.shippingAddress.state || formData.shippingAddress.city || 'IT',
+          postalCode: formData.shippingAddress.postalCode,
+          country: formData.shippingAddress.country,
+          phone: formData.shippingAddress.phone || ''
+        },
+        billingAddress: {
+          firstName: formData.billingAddress.firstName || '',
+          lastName: formData.billingAddress.lastName || '',
+          company: formData.billingAddress.company || '',
+          address1: formData.billingAddress.streetAddress,
+          address2: '',
+          city: formData.billingAddress.city,
+          state: formData.billingAddress.state || formData.billingAddress.city || 'IT',
+          postalCode: formData.billingAddress.postalCode,
+          country: formData.billingAddress.country,
+          phone: formData.billingAddress.phone || ''
+        }
       };
 
       const response = await orderService.updateOrder(id, updateData);
@@ -686,19 +713,28 @@ const OrderEditPage: React.FC = () => {
                   <h4 className="text-sm font-medium text-gray-900 mb-3">Indirizzo di Spedizione</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
-                      label="Nome completo"
+                      label="Nome"
                       type="text"
-                      value={formData.shippingAddress.name}
-                      onChange={(e) => handleAddressChange('shippingAddress', 'name', e.target.value)}
-                      placeholder="Nome e cognome"
+                      value={formData.shippingAddress.firstName || ''}
+                      onChange={(e) => handleAddressChange('shippingAddress', 'firstName', e.target.value)}
+                      placeholder="Nome"
                     />
                     <Input
-                      label="Via e numero civico"
+                      label="Cognome"
                       type="text"
-                      value={formData.shippingAddress.street}
-                      onChange={(e) => handleAddressChange('shippingAddress', 'street', e.target.value)}
-                      placeholder="Via, numero civico"
+                      value={formData.shippingAddress.lastName || ''}
+                      onChange={(e) => handleAddressChange('shippingAddress', 'lastName', e.target.value)}
+                      placeholder="Cognome"
                     />
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Via e numero civico"
+                        type="text"
+                        value={formData.shippingAddress.streetAddress}
+                        onChange={(e) => handleAddressChange('shippingAddress', 'streetAddress', e.target.value)}
+                        placeholder="Via, numero civico"
+                      />
+                    </div>
                     <Input
                       label="Città"
                       type="text"
@@ -733,8 +769,9 @@ const OrderEditPage: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={
-                          formData.billingAddress.name === formData.shippingAddress.name &&
-                          formData.billingAddress.street === formData.shippingAddress.street &&
+                          formData.billingAddress.firstName === formData.shippingAddress.firstName &&
+                          formData.billingAddress.lastName === formData.shippingAddress.lastName &&
+                          formData.billingAddress.streetAddress === formData.shippingAddress.streetAddress &&
                           formData.billingAddress.city === formData.shippingAddress.city &&
                           formData.billingAddress.postalCode === formData.shippingAddress.postalCode
                         }
@@ -747,7 +784,7 @@ const OrderEditPage: React.FC = () => {
                           } else {
                             setFormData(prev => ({
                               ...prev,
-                              billingAddress: { name: '', street: '', city: '', postalCode: '', country: 'Italia' }
+                              billingAddress: { streetAddress: '', city: '', postalCode: '', country: 'Italia' }
                             }));
                           }
                         }}
@@ -757,26 +794,36 @@ const OrderEditPage: React.FC = () => {
                     </label>
                   </div>
                   {!(
-                    formData.billingAddress.name === formData.shippingAddress.name &&
-                    formData.billingAddress.street === formData.shippingAddress.street &&
+                    formData.billingAddress.firstName === formData.shippingAddress.firstName &&
+                    formData.billingAddress.lastName === formData.shippingAddress.lastName &&
+                    formData.billingAddress.streetAddress === formData.shippingAddress.streetAddress &&
                     formData.billingAddress.city === formData.shippingAddress.city &&
                     formData.billingAddress.postalCode === formData.shippingAddress.postalCode
                   ) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
-                        label="Nome completo"
+                        label="Nome"
                         type="text"
-                        value={formData.billingAddress.name}
-                        onChange={(e) => handleAddressChange('billingAddress', 'name', e.target.value)}
-                        placeholder="Nome e cognome"
+                        value={formData.billingAddress.firstName || ''}
+                        onChange={(e) => handleAddressChange('billingAddress', 'firstName', e.target.value)}
+                        placeholder="Nome"
                       />
                       <Input
-                        label="Via e numero civico"
+                        label="Cognome"
                         type="text"
-                        value={formData.billingAddress.street}
-                        onChange={(e) => handleAddressChange('billingAddress', 'street', e.target.value)}
-                        placeholder="Via, numero civico"
+                        value={formData.billingAddress.lastName || ''}
+                        onChange={(e) => handleAddressChange('billingAddress', 'lastName', e.target.value)}
+                        placeholder="Cognome"
                       />
+                      <div className="md:col-span-2">
+                        <Input
+                          label="Via e numero civico"
+                          type="text"
+                          value={formData.billingAddress.streetAddress}
+                          onChange={(e) => handleAddressChange('billingAddress', 'streetAddress', e.target.value)}
+                          placeholder="Via, numero civico"
+                        />
+                      </div>
                       <Input
                         label="Città"
                         type="text"

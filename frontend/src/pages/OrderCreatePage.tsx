@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { orderService, productService, authService } from '../services/api';
-import type { Product, User } from '../services/api';
+import { orderService, productService, authService, addressService } from '../services/api';
+import type { Product, User, UserAddress, CreateOrderRequest } from '../services/api';
 // Temporary: using inline type until module loading is fixed
 interface OrderAddress {
   firstName: string;
@@ -23,7 +23,7 @@ import Input from '../components/Input';
 import ErrorMessage from '../components/ErrorMessage';
 
 interface OrderItem {
-  productId: string;
+  productId: string; // Keeping as string for UI compatibility
   product?: Product;
   quantity: number;
   price: number;
@@ -33,8 +33,15 @@ interface OrderItem {
 interface OrderFormData {
   userId: string;
   items: OrderItem[];
+  // New address reference fields (preferred method)
+  shippingAddressId?: number;
+  billingAddressId?: number;
+  // Legacy address fields (fallback)
   shippingAddress: OrderAddress;
   billingAddress: OrderAddress;
+  // For UI selection
+  useShippingAddressId: boolean;
+  useBillingAddressId: boolean;
   notes: string;
   shippingCost: number;
   taxAmount: number;
@@ -46,12 +53,18 @@ interface NewCustomerForm {
   lastName: string;
   email: string;
   username: string;
+  phone: string;
+  streetAddress: string;
+  city: string;
+  postalCode: string;
+  country: string;
 }
 
 const OrderCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [userAddresses, setUserAddresses] = useState<UserAddress[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -59,6 +72,10 @@ const OrderCreatePage: React.FC = () => {
   const [formData, setFormData] = useState<OrderFormData>({
     userId: '',
     items: [],
+    // New address reference fields
+    shippingAddressId: undefined,
+    billingAddressId: undefined,
+    // Legacy address fields
     shippingAddress: {
       firstName: '',
       lastName: '',
@@ -83,6 +100,9 @@ const OrderCreatePage: React.FC = () => {
       country: 'Italy',
       phone: ''
     },
+    // UI selection
+    useShippingAddressId: false,
+    useBillingAddressId: false,
     notes: '',
     shippingCost: 0,
     taxAmount: 0,
@@ -100,7 +120,12 @@ const OrderCreatePage: React.FC = () => {
     firstName: '',
     lastName: '',
     email: '',
-    username: ''
+    username: '',
+    phone: '',
+    streetAddress: '',
+    city: '',
+    postalCode: '',
+    country: 'Italy'
   });
 
   useEffect(() => {
@@ -119,7 +144,9 @@ const OrderCreatePage: React.FC = () => {
       }
 
       if (usersResponse.success) {
-        setUsers(usersResponse.data);
+        // Filter only CLIENT users for order creation
+        const clientUsers = usersResponse.data.filter(user => user.role === 'CLIENT');
+        setUsers(clientUsers);
       }
     } catch (error: any) {
       console.error('Error loading data:', error);
@@ -218,26 +245,58 @@ const OrderCreatePage: React.FC = () => {
       const userData = {
         ...newCustomerForm,
         password: 'TempPassword123!', // Temporary password - should be changed on first login
-        role: 'USER',
+        role: 'CLIENT',
         isActive: true
       };
 
       const response = await authService.register(userData);
 
       if (response.success && response.user) {
-        // Add new user to users list
-        setUsers(prev => [...prev, response.user]);
-        // Select the new user
-        setFormData(prev => ({ ...prev, userId: response.user.id.toString() }));
+        // Add new user to users list (only if it's a CLIENT)
+        if (response.user.role === 'CLIENT') {
+          setUsers(prev => [...prev, response.user]);
+          // Select the new user
+          setFormData(prev => ({ ...prev, userId: response.user.id.toString() }));
+
+          // Auto-populate address fields if they were provided during customer creation
+          if (newCustomerForm.streetAddress || newCustomerForm.city || newCustomerForm.postalCode) {
+            const customerAddress: OrderAddress = {
+              firstName: newCustomerForm.firstName,
+              lastName: newCustomerForm.lastName,
+              company: '',
+              address1: newCustomerForm.streetAddress,
+              address2: '',
+              city: newCustomerForm.city,
+              state: newCustomerForm.city, // Use city as state fallback
+              postalCode: newCustomerForm.postalCode,
+              country: newCustomerForm.country,
+              phone: newCustomerForm.phone
+            };
+
+            setFormData(prev => ({
+              ...prev,
+              shippingAddress: customerAddress,
+              billingAddress: customerAddress
+            }));
+
+            setSuccess('Nuovo cliente creato con successo! Indirizzi popolati automaticamente.');
+          } else {
+            setSuccess('Nuovo cliente creato con successo!');
+          }
+        }
         // Close modal and reset form
         setShowNewCustomerModal(false);
         setNewCustomerForm({
           firstName: '',
           lastName: '',
           email: '',
-          username: ''
+          username: '',
+          phone: '',
+          streetAddress: '',
+          city: '',
+          postalCode: '',
+          country: 'Italy'
         });
-        setSuccess('Nuovo cliente creato con successo!');
         setTimeout(() => setSuccess(''), 3000);
       } else {
         throw new Error(response.message || 'Errore durante la creazione del cliente');
@@ -249,142 +308,78 @@ const OrderCreatePage: React.FC = () => {
     }
   };
 
-  const loadUserAddress = async (userId: string) => {
+  const loadUserAddresses = async (userId: string) => {
     try {
-      const response = await authService.getUserLastAddress(userId);
+      const response = await addressService.getUserAddresses(userId);
       if (response.success && response.data) {
-        const { shippingAddress, billingAddress } = response.data;
+        setUserAddresses(response.data);
 
-        // Verifica se ci sono indirizzi validi
-        const hasShippingAddress = shippingAddress && Object.keys(shippingAddress).length > 0 &&
-          (shippingAddress.firstName || shippingAddress.name);
-        const hasBillingAddress = billingAddress && Object.keys(billingAddress).length > 0 &&
-          (billingAddress.firstName || billingAddress.name);
+        // If user has addresses, auto-populate legacy address fields with default address
+        if (response.data.length > 0) {
+          const defaultShipping = response.data.find(addr => addr.isDefault) || response.data[0];
 
-        if (hasShippingAddress || hasBillingAddress) {
-          // Funzione per convertire l'indirizzo al formato unificato
-          const convertToUnifiedFormat = (addr: any): OrderAddress => {
-            // Se è già nel formato unificato
-            if (addr.firstName !== undefined) {
-              return {
-                firstName: addr.firstName || '',
-                lastName: addr.lastName || '',
-                company: addr.company || '',
-                address1: addr.address1 || '',
-                address2: addr.address2 || '',
-                city: addr.city || '',
-                state: addr.state || addr.city || 'IT',
-                postalCode: addr.postalCode || '',
-                country: addr.country || 'Italy',
-                phone: addr.phone || ''
-              };
-            }
-            // Se è nel formato legacy (name, street)
-            const fullName = addr.name || '';
-            const nameParts = fullName.trim().split(' ');
-            return {
-              firstName: nameParts[0] || '',
-              lastName: nameParts.slice(1).join(' ') || '',
-              company: addr.company || '',
-              address1: addr.street || '',
-              address2: '',
-              city: addr.city || '',
-              state: addr.state || addr.city || 'IT',
-              postalCode: addr.postalCode || '',
-              country: addr.country || 'Italy',
-              phone: addr.phone || ''
-            };
-          };
-
-          const emptyAddress: OrderAddress = {
-            firstName: '',
-            lastName: '',
+          // Convert UserAddress to OrderAddress format
+          // Get user name from selected user since UserAddress doesn't contain name fields
+          const selectedUser = users.find(u => u.id.toString() === formData.userId);
+          const convertedAddress: OrderAddress = {
+            firstName: selectedUser?.firstName || '',
+            lastName: selectedUser?.lastName || '',
             company: '',
-            address1: '',
+            address1: defaultShipping.streetAddress || '',
             address2: '',
-            city: '',
-            state: '',
-            postalCode: '',
-            country: 'Italy',
-            phone: ''
+            city: defaultShipping.city || '',
+            state: defaultShipping.state || defaultShipping.city || 'IT',
+            postalCode: defaultShipping.postalCode || '',
+            country: defaultShipping.country || 'Italy',
+            phone: selectedUser?.phone || ''
           };
 
           setFormData(prev => ({
             ...prev,
-            shippingAddress: hasShippingAddress ? convertToUnifiedFormat(shippingAddress) : emptyAddress,
-            billingAddress: hasBillingAddress ? convertToUnifiedFormat(billingAddress) : emptyAddress
+            shippingAddressId: defaultShipping.id,
+            billingAddressId: defaultShipping.id,
+            useShippingAddressId: true,
+            useBillingAddressId: true,
+            shippingAddress: convertedAddress,
+            billingAddress: convertedAddress
           }));
 
-          setSuccess('Indirizzi caricati automaticamente dall\'ultimo ordine del cliente');
+          setSuccess(`Trovati ${response.data.length} indirizzi per questo cliente - indirizzo predefinito caricato`);
           setTimeout(() => setSuccess(''), 3000);
         } else {
-          const emptyAddress: OrderAddress = {
-            firstName: '',
-            lastName: '',
-            company: '',
-            address1: '',
-            address2: '',
-            city: '',
-            state: '',
-            postalCode: '',
-            country: 'Italy',
-            phone: ''
-          };
-
+          // No addresses found, reset to manual entry
+          setUserAddresses([]);
           setFormData(prev => ({
             ...prev,
-            shippingAddress: emptyAddress,
-            billingAddress: emptyAddress
+            shippingAddressId: undefined,
+            billingAddressId: undefined,
+            useShippingAddressId: false,
+            useBillingAddressId: false
           }));
 
-          setError('Nessun indirizzo precedente trovato per questo cliente - inserisci manualmente');
+          setError('Nessun indirizzo salvato per questo cliente - inserisci manualmente');
           setTimeout(() => setError(''), 3000);
         }
       } else {
-        const emptyAddress: OrderAddress = {
-          firstName: '',
-          lastName: '',
-          company: '',
-          address1: '',
-          address2: '',
-          city: '',
-          state: '',
-          postalCode: '',
-          country: 'Italy',
-          phone: ''
-        };
-
+        setUserAddresses([]);
         setFormData(prev => ({
           ...prev,
-          shippingAddress: emptyAddress,
-          billingAddress: emptyAddress
+          shippingAddressId: undefined,
+          billingAddressId: undefined,
+          useShippingAddressId: false,
+          useBillingAddressId: false
         }));
-
-        setError('Nessun indirizzo precedente trovato per questo cliente - inserisci manualmente');
-        setTimeout(() => setError(''), 3000);
       }
     } catch (error) {
-      const emptyAddress: OrderAddress = {
-        firstName: '',
-        lastName: '',
-        company: '',
-        address1: '',
-        address2: '',
-        city: '',
-        state: '',
-        postalCode: '',
-        country: 'Italy',
-        phone: ''
-      };
-
+      console.error('Error loading user addresses:', error);
+      setUserAddresses([]);
       setFormData(prev => ({
         ...prev,
-        shippingAddress: emptyAddress,
-        billingAddress: emptyAddress
+        shippingAddressId: undefined,
+        billingAddressId: undefined,
+        useShippingAddressId: false,
+        useBillingAddressId: false
       }));
-
-      setError('Nessun indirizzo precedente trovato per questo cliente - inserisci manualmente');
-      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -392,9 +387,19 @@ const OrderCreatePage: React.FC = () => {
     const userId = e.target.value;
     setFormData(prev => ({ ...prev, userId }));
 
-    // Carica l'ultimo indirizzo dell'utente se disponibile
+    // Load user addresses if available
     if (userId) {
-      await loadUserAddress(userId);
+      await loadUserAddresses(userId);
+    } else {
+      // Reset address data when no user selected
+      setUserAddresses([]);
+      setFormData(prev => ({
+        ...prev,
+        shippingAddressId: undefined,
+        billingAddressId: undefined,
+        useShippingAddressId: false,
+        useBillingAddressId: false
+      }));
     }
   };
 
@@ -434,49 +439,74 @@ const OrderCreatePage: React.FC = () => {
       if (formData.items.length === 0) {
         throw new Error('Aggiungi almeno un prodotto all\'ordine');
       }
-      if (!formData.shippingAddress.firstName.trim() || !formData.shippingAddress.lastName.trim() ||
-          !formData.shippingAddress.address1.trim() || !formData.shippingAddress.city.trim() ||
-          !formData.shippingAddress.postalCode.trim()) {
-        throw new Error('Completa tutti i campi obbligatori dell\'indirizzo di spedizione');
+
+      // Validate shipping address
+      if (formData.useShippingAddressId) {
+        if (!formData.shippingAddressId) {
+          throw new Error('Seleziona un indirizzo di spedizione dalla lista');
+        }
+      } else {
+        if (!formData.shippingAddress.address1?.trim() || !formData.shippingAddress.city?.trim() ||
+            !formData.shippingAddress.postalCode?.trim()) {
+          throw new Error('Completa tutti i campi obbligatori dell\'indirizzo di spedizione');
+        }
       }
 
-      const subtotal = calculateSubtotal();
-      const totalAmount = calculateTotal();
+      // Order data calculations are handled in the component methods
 
-      // Addresses are already in the unified format, just ensure required fields
+      // Get selected user data to populate name fields
+      const selectedUser = users.find(u => u.id.toString() === formData.userId);
+      if (!selectedUser) {
+        throw new Error('Cliente selezionato non trovato');
+      }
+
+      // Convert addresses to legacy format expected by backend
       const shippingAddress = {
-        ...formData.shippingAddress,
-        state: formData.shippingAddress.state || formData.shippingAddress.city || 'IT'
+        firstName: formData.shippingAddress.firstName || selectedUser.firstName || 'Cliente',
+        lastName: formData.shippingAddress.lastName || selectedUser.lastName || 'Cliente',
+        company: formData.shippingAddress.company || '',
+        address1: formData.shippingAddress.address1 || '',
+        address2: formData.shippingAddress.address2 || '',
+        city: formData.shippingAddress.city || '',
+        state: formData.shippingAddress.state || formData.shippingAddress.city || 'IT',
+        postalCode: formData.shippingAddress.postalCode || '',
+        country: formData.shippingAddress.country || 'Italy',
+        phone: formData.shippingAddress.phone || selectedUser.phone || ''
       };
 
-      const billingAddress = (formData.billingAddress.firstName.trim() || formData.billingAddress.lastName.trim())
+      const billingAddress = (formData.billingAddress.firstName.trim() || formData.billingAddress.lastName.trim() || formData.billingAddress.address1.trim())
         ? {
-            ...formData.billingAddress,
-            state: formData.billingAddress.state || formData.billingAddress.city || 'IT'
+            firstName: formData.billingAddress.firstName || selectedUser.firstName || 'Cliente',
+            lastName: formData.billingAddress.lastName || selectedUser.lastName || 'Cliente',
+            company: formData.billingAddress.company || '',
+            address1: formData.billingAddress.address1 || '',
+            address2: formData.billingAddress.address2 || '',
+            city: formData.billingAddress.city || '',
+            state: formData.billingAddress.state || formData.billingAddress.city || 'IT',
+            postalCode: formData.billingAddress.postalCode || '',
+            country: formData.billingAddress.country || 'Italy',
+            phone: formData.billingAddress.phone || selectedUser.phone || ''
           }
         : shippingAddress;
 
-      const orderData = {
-        userId: formData.userId,
+      // Prepare order data using new CreateOrderRequest interface
+      const orderData: CreateOrderRequest = {
         items: formData.items.map(item => ({
-          productId: item.productId,
-          name: item.product?.name || '',
-          sku: item.product?.sku || '',
+          productId: parseInt(item.productId), // Convert string to number
           quantity: item.quantity,
-          price: item.price,
-          totalPrice: item.totalPrice
+          unitPrice: item.price // Use unitPrice instead of price to match backend
         })),
-        subtotal,
+        targetUserId: parseInt(formData.userId), // Add target user ID for admin orders
         shippingCost: formData.shippingCost,
         taxAmount: formData.taxAmount,
         discountAmount: formData.discountAmount,
-        totalAmount,
-        shippingAddress,
-        billingAddress,
         notes: formData.notes,
-        status: 'PENDING',
-        paymentStatus: 'PENDING'
+        currency: 'EUR'
       };
+
+      // Always use legacy address format (like OrderEditPage) to avoid foreign key constraint issues
+      orderData.shippingAddress = shippingAddress;
+      orderData.billingAddress = billingAddress;
 
       const response = await orderService.createOrder(orderData);
 
@@ -576,6 +606,178 @@ const OrderCreatePage: React.FC = () => {
                     </div>
                   </div>
                 </Card>
+
+                {/* Address Selection (for CLIENT users with saved addresses) */}
+                {formData.userId && userAddresses.length > 0 && (
+                  <Card>
+                    <div className="px-6 py-4 border-b border-gray-200">
+                      <h3 className="text-lg font-medium text-gray-900">Selezione Indirizzi</h3>
+                    </div>
+                    <div className="px-6 py-4 space-y-6">
+                      {/* Shipping Address Selection */}
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900 mb-3">Indirizzo di Spedizione</h4>
+                        <div className="space-y-3">
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name="shippingAddressMode"
+                              checked={formData.useShippingAddressId}
+                              onChange={() => setFormData(prev => ({
+                                ...prev,
+                                useShippingAddressId: true,
+                                shippingAddressId: userAddresses[0]?.id || undefined
+                              }))}
+                              className="mr-2"
+                            />
+                            <span className="text-sm text-gray-700">Usa indirizzo salvato</span>
+                          </label>
+                          {formData.useShippingAddressId && (
+                            <select
+                              value={formData.shippingAddressId || ''}
+                              onChange={(e) => {
+                                const addressId = parseInt(e.target.value);
+                                const selectedAddress = userAddresses.find(addr => addr.id === addressId);
+
+                                if (selectedAddress) {
+                                  // Convert to legacy format and update form
+                                  // Get user name from selected user since UserAddress doesn't contain name fields
+                                  const selectedUser = users.find(u => u.id.toString() === formData.userId);
+                                  const convertedAddress: OrderAddress = {
+                                    firstName: selectedUser?.firstName || '',
+                                    lastName: selectedUser?.lastName || '',
+                                    company: '',
+                                    address1: selectedAddress.streetAddress || '',
+                                    address2: '',
+                                    city: selectedAddress.city || '',
+                                    state: selectedAddress.state || selectedAddress.city || 'IT',
+                                    postalCode: selectedAddress.postalCode || '',
+                                    country: selectedAddress.country || 'Italy',
+                                    phone: selectedUser?.phone || ''
+                                  };
+
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    shippingAddressId: addressId,
+                                    shippingAddress: convertedAddress
+                                  }));
+                                } else {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    shippingAddressId: undefined
+                                  }));
+                                }
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ml-6"
+                            >
+                              {userAddresses.map((address) => (
+                                <option key={address.id} value={address.id}>
+                                  {address.streetAddress} - {address.city}, {address.postalCode}
+                                  {address.isDefault && ' (Predefinito)'}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name="shippingAddressMode"
+                              checked={!formData.useShippingAddressId}
+                              onChange={() => setFormData(prev => ({
+                                ...prev,
+                                useShippingAddressId: false,
+                                shippingAddressId: undefined
+                              }))}
+                              className="mr-2"
+                            />
+                            <span className="text-sm text-gray-700">Inserisci nuovo indirizzo</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Billing Address Selection */}
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900 mb-3">Indirizzo di Fatturazione</h4>
+                        <div className="space-y-3">
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name="billingAddressMode"
+                              checked={formData.useBillingAddressId}
+                              onChange={() => setFormData(prev => ({
+                                ...prev,
+                                useBillingAddressId: true,
+                                billingAddressId: userAddresses[0]?.id || undefined
+                              }))}
+                              className="mr-2"
+                            />
+                            <span className="text-sm text-gray-700">Usa indirizzo salvato</span>
+                          </label>
+                          {formData.useBillingAddressId && (
+                            <select
+                              value={formData.billingAddressId || ''}
+                              onChange={(e) => {
+                                const addressId = parseInt(e.target.value);
+                                const selectedAddress = userAddresses.find(addr => addr.id === addressId);
+
+                                if (selectedAddress) {
+                                  // Convert to legacy format and update form
+                                  // Get user name from selected user since UserAddress doesn't contain name fields
+                                  const selectedUser = users.find(u => u.id.toString() === formData.userId);
+                                  const convertedAddress: OrderAddress = {
+                                    firstName: selectedUser?.firstName || '',
+                                    lastName: selectedUser?.lastName || '',
+                                    company: '',
+                                    address1: selectedAddress.streetAddress || '',
+                                    address2: '',
+                                    city: selectedAddress.city || '',
+                                    state: selectedAddress.state || selectedAddress.city || 'IT',
+                                    postalCode: selectedAddress.postalCode || '',
+                                    country: selectedAddress.country || 'Italy',
+                                    phone: selectedUser?.phone || ''
+                                  };
+
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    billingAddressId: addressId,
+                                    billingAddress: convertedAddress
+                                  }));
+                                } else {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    billingAddressId: undefined
+                                  }));
+                                }
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ml-6"
+                            >
+                              {userAddresses.map((address) => (
+                                <option key={address.id} value={address.id}>
+                                  {address.streetAddress} - {address.city}, {address.postalCode}
+                                  {address.isDefault && ' (Predefinito)'}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name="billingAddressMode"
+                              checked={!formData.useBillingAddressId}
+                              onChange={() => setFormData(prev => ({
+                                ...prev,
+                                useBillingAddressId: false,
+                                billingAddressId: undefined
+                              }))}
+                              className="mr-2"
+                            />
+                            <span className="text-sm text-gray-700">Inserisci nuovo indirizzo o uguale alla spedizione</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                )}
 
                 {/* Add Products */}
                 <Card>
@@ -706,15 +908,17 @@ const OrderCreatePage: React.FC = () => {
                   </div>
                 </Card>
 
-                {/* Addresses */}
-                <Card>
-                  <div className="px-6 py-4 border-b border-gray-200">
-                    <h3 className="text-lg font-medium text-gray-900">Indirizzi</h3>
-                  </div>
-                  <div className="px-6 py-4 space-y-6">
-                    {/* Shipping Address */}
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900 mb-3">Indirizzo di Spedizione *</h4>
+                {/* Manual Address Entry */}
+                {(!formData.useShippingAddressId || !formData.useBillingAddressId || userAddresses.length === 0) && (
+                  <Card>
+                    <div className="px-6 py-4 border-b border-gray-200">
+                      <h3 className="text-lg font-medium text-gray-900">Indirizzi Manuali</h3>
+                    </div>
+                    <div className="px-6 py-4 space-y-6">
+                      {/* Shipping Address */}
+                      {!formData.useShippingAddressId && (
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900 mb-3">Indirizzo di Spedizione *</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input
                           label="Nome *"
@@ -821,12 +1025,14 @@ const OrderCreatePage: React.FC = () => {
                           }))}
                           placeholder="Italy"
                         />
-                      </div>
-                    </div>
+                          </div>
+                        </div>
+                      )}
 
-                    {/* Billing Address */}
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900 mb-3">Indirizzo di Fatturazione (opzionale)</h4>
+                      {/* Billing Address */}
+                      {!formData.useBillingAddressId && (
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900 mb-3">Indirizzo di Fatturazione (opzionale)</h4>
                       <div className="mb-3">
                         <label className="flex items-center">
                           <input
@@ -979,9 +1185,11 @@ const OrderCreatePage: React.FC = () => {
                           />
                         </div>
                       )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </Card>
+                  </Card>
+                )}
 
                 {/* Notes */}
                 <Card>
@@ -1079,7 +1287,7 @@ const OrderCreatePage: React.FC = () => {
           {/* New Customer Modal */}
           {showNewCustomerModal && (
             <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
-              <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <div className="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
                 <div className="mt-3">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Crea Nuovo Cliente</h3>
 
@@ -1124,6 +1332,54 @@ const OrderCreatePage: React.FC = () => {
                       required
                     />
 
+                    {/* Address Fields Section */}
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-medium text-gray-900 mb-3">Informazioni di Contatto</h4>
+                      <div className="space-y-4">
+                        <Input
+                          label="Telefono"
+                          type="text"
+                          value={newCustomerForm.phone}
+                          onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))}
+                          placeholder="Numero di telefono"
+                        />
+
+                        <Input
+                          label="Indirizzo"
+                          type="text"
+                          value={newCustomerForm.streetAddress}
+                          onChange={(e) => setNewCustomerForm(prev => ({ ...prev, streetAddress: e.target.value }))}
+                          placeholder="Via, numero civico"
+                        />
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <Input
+                            label="Città"
+                            type="text"
+                            value={newCustomerForm.city}
+                            onChange={(e) => setNewCustomerForm(prev => ({ ...prev, city: e.target.value }))}
+                            placeholder="Città"
+                          />
+
+                          <Input
+                            label="CAP"
+                            type="text"
+                            value={newCustomerForm.postalCode}
+                            onChange={(e) => setNewCustomerForm(prev => ({ ...prev, postalCode: e.target.value }))}
+                            placeholder="00000"
+                          />
+                        </div>
+
+                        <Input
+                          label="Paese"
+                          type="text"
+                          value={newCustomerForm.country}
+                          onChange={(e) => setNewCustomerForm(prev => ({ ...prev, country: e.target.value }))}
+                          placeholder="Italy"
+                        />
+                      </div>
+                    </div>
+
                     <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
                       <p className="text-sm text-yellow-700">
                         <strong>Nota:</strong> La password temporanea sarà "TempPassword123!" -
@@ -1142,7 +1398,12 @@ const OrderCreatePage: React.FC = () => {
                             firstName: '',
                             lastName: '',
                             email: '',
-                            username: ''
+                            username: '',
+                            phone: '',
+                            streetAddress: '',
+                            city: '',
+                            postalCode: '',
+                            country: 'Italy'
                           });
                         }}
                         disabled={creatingCustomer}

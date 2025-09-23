@@ -35,7 +35,10 @@ export interface OrderAttributes {
   discountAmount: number;
   totalAmount: number;
   currency: string;
-  shippingAddress: string;
+  shippingAddressId?: number;
+  billingAddressId?: number;
+  // Legacy fields - will store JSON as fallback for old orders
+  shippingAddress?: string;
   billingAddress?: string;
   notes?: string;
   trackingNumber?: string;
@@ -47,7 +50,7 @@ export interface OrderAttributes {
   updatedAt: Date;
 }
 
-export interface OrderCreationAttributes extends Optional<OrderAttributes, 'id' | 'status' | 'paymentStatus' | 'shippingCost' | 'taxAmount' | 'discountAmount' | 'currency' | 'billingAddress' | 'notes' | 'trackingNumber' | 'shippedAt' | 'deliveredAt' | 'cancelledAt' | 'cancelReason' | 'createdAt' | 'updatedAt'> {}
+export interface OrderCreationAttributes extends Optional<OrderAttributes, 'id' | 'status' | 'paymentStatus' | 'shippingCost' | 'taxAmount' | 'discountAmount' | 'currency' | 'shippingAddressId' | 'billingAddressId' | 'shippingAddress' | 'billingAddress' | 'notes' | 'trackingNumber' | 'shippedAt' | 'deliveredAt' | 'cancelledAt' | 'cancelReason' | 'createdAt' | 'updatedAt'> {}
 
 export class Order extends Model<OrderAttributes, OrderCreationAttributes> implements OrderAttributes {
   declare id: number;
@@ -61,7 +64,10 @@ export class Order extends Model<OrderAttributes, OrderCreationAttributes> imple
   declare discountAmount: number;
   declare totalAmount: number;
   declare currency: string;
-  declare shippingAddress: string;
+  declare shippingAddressId?: number;
+  declare billingAddressId?: number;
+  // Legacy fields - will store JSON as fallback for old orders
+  declare shippingAddress?: string;
   declare billingAddress?: string;
   declare notes?: string;
   declare trackingNumber?: string;
@@ -72,10 +78,10 @@ export class Order extends Model<OrderAttributes, OrderCreationAttributes> imple
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 
-  // Helper methods
+  // Helper methods for backward compatibility with legacy JSON addresses
   public getShippingAddressObject(): any {
     try {
-      return JSON.parse(this.shippingAddress);
+      return this.shippingAddress ? JSON.parse(this.shippingAddress) : null;
     } catch {
       return null;
     }
@@ -95,6 +101,19 @@ export class Order extends Model<OrderAttributes, OrderCreationAttributes> imple
 
   public setBillingAddressObject(address: any): void {
     this.billingAddress = JSON.stringify(address);
+  }
+
+  // New methods for address references
+  public hasShippingAddressReference(): boolean {
+    return this.shippingAddressId !== null && this.shippingAddressId !== undefined;
+  }
+
+  public hasBillingAddressReference(): boolean {
+    return this.billingAddressId !== null && this.billingAddressId !== undefined;
+  }
+
+  public isLegacyOrder(): boolean {
+    return !this.hasShippingAddressReference() && Boolean(this.shippingAddress);
   }
 
   public isPaid(): boolean {
@@ -190,15 +209,34 @@ Order.init(
         isUppercase: true
       }
     },
+    shippingAddressId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'user_addresses',
+        key: 'id'
+      },
+      comment: 'Reference to UserAddress for shipping'
+    },
+    billingAddressId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'user_addresses',
+        key: 'id'
+      },
+      comment: 'Reference to UserAddress for billing'
+    },
+    // Legacy fields for backward compatibility
     shippingAddress: {
       type: DataTypes.TEXT,
-      allowNull: false,
-      comment: 'JSON object with shipping address'
+      allowNull: true,
+      comment: 'Legacy JSON object with shipping address (for old orders)'
     },
     billingAddress: {
       type: DataTypes.TEXT,
       allowNull: true,
-      comment: 'JSON object with billing address'
+      comment: 'Legacy JSON object with billing address (for old orders)'
     },
     notes: {
       type: DataTypes.TEXT,

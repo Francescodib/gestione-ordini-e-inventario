@@ -76,6 +76,14 @@ export function validate(
         value: detail.context?.value
       }));
 
+      // Temporary logging to debug validation issues
+      console.error('❌ Validation Error Details:', {
+        target,
+        dataToValidate,
+        errors: validationErrors,
+        originalError: error.message
+      });
+
       return res.status(400).json({
         success: false,
         message: 'Validation error',

@@ -25,15 +25,11 @@ export interface UserAttributes {
   avatar?: string;
   lastLogin?: Date;
   phone?: string;
-  streetAddress?: string;
-  city?: string;
-  postalCode?: string;
-  country?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'role' | 'isActive' | 'emailVerified' | 'avatar' | 'lastLogin' | 'phone' | 'streetAddress' | 'city' | 'postalCode' | 'country' | 'createdAt' | 'updatedAt'> {}
+export interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'role' | 'isActive' | 'emailVerified' | 'avatar' | 'lastLogin' | 'phone' | 'createdAt' | 'updatedAt'> {}
 
 export class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
   declare id: number;
@@ -48,10 +44,6 @@ export class User extends Model<UserAttributes, UserCreationAttributes> implemen
   declare avatar?: string;
   declare lastLogin?: Date;
   declare phone?: string;
-  declare streetAddress?: string;
-  declare city?: string;
-  declare postalCode?: string;
-  declare country?: string;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 
@@ -60,19 +52,6 @@ export class User extends Model<UserAttributes, UserCreationAttributes> implemen
     return `${this.firstName} ${this.lastName}`;
   }
 
-  public getFullAddress(): string | null {
-    if (!this.streetAddress || !this.city) {
-      return null;
-    }
-    const parts = [this.streetAddress, this.city];
-    if (this.postalCode) parts.push(this.postalCode);
-    if (this.country) parts.push(this.country);
-    return parts.join(', ');
-  }
-
-  public hasCompleteAddress(): boolean {
-    return !!(this.streetAddress && this.city && this.postalCode && this.country);
-  }
 
   public isClient(): boolean {
     return this.role === UserRole.CLIENT;
@@ -171,34 +150,6 @@ User.init(
       allowNull: true,
       validate: {
         len: [1, 20]
-      }
-    },
-    streetAddress: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      validate: {
-        len: [1, 255]
-      }
-    },
-    city: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      validate: {
-        len: [1, 100]
-      }
-    },
-    postalCode: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      validate: {
-        len: [1, 20]
-      }
-    },
-    country: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      validate: {
-        len: [1, 100]
       }
     },
     createdAt: {

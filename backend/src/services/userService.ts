@@ -3,7 +3,9 @@
  * File: src/services/userService.ts
  */
 
-import { User, UserRole } from '../models';
+import { User, UserRole, UserAddress, AddressType } from '../models';
+import { AuditService } from './auditService';
+import { AuditAction, ResourceType } from '../models';
 import { sequelize } from '../config/database';
 import bcrypt from 'bcryptjs';
 import { Op, WhereOptions, fn, col } from 'sequelize';
@@ -18,6 +20,15 @@ export interface CreateUserRequest {
   firstName: string;
   lastName: string;
   role?: UserRole;
+  phone?: string;
+  address?: {
+    streetAddress: string;
+    city: string;
+    postalCode: string;
+    country: string;
+    state?: string;
+    addressType?: 'SHIPPING' | 'BILLING';
+  };
 }
 
 export interface UpdateUserRequest {
@@ -27,6 +38,7 @@ export interface UpdateUserRequest {
   lastName?: string;
   role?: UserRole;
   isActive?: boolean;
+  phone?: string;
 }
 
 export interface LoginRequest {
@@ -44,6 +56,7 @@ export interface UserResponse {
   isActive: boolean;
   emailVerified: boolean;
   lastLogin?: Date;
+  phone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -60,25 +73,68 @@ export class UserService {
   /**
    * Create a new user
    */
-  static async createUser(userData: CreateUserRequest): Promise<User> {
+  static async createUser(
+    userData: CreateUserRequest,
+    createdBy?: number,
+    auditContext?: { ipAddress?: string; userAgent?: string }
+  ): Promise<User> {
+    const transaction = await sequelize.transaction();
+
     try {
       // Hash password
       const hashedPassword = await bcrypt.hash(userData.password, 12);
-      
+
+      // Create user with all fields including phone
       const user = await User.create({
         username: userData.username.toLowerCase().trim(),
         email: userData.email.toLowerCase().trim(),
         password: hashedPassword,
         firstName: userData.firstName.trim(),
         lastName: userData.lastName.trim(),
-        role: userData.role || UserRole.CLIENT
-      });
+        role: userData.role || UserRole.CLIENT,
+        phone: userData.phone || undefined
+      }, { transaction });
 
+      // Create address in separate table if user is CLIENT and address provided
+      if ((userData.role || UserRole.CLIENT) === UserRole.CLIENT && userData.address) {
+        await UserAddress.create({
+          userId: user.id,
+          addressType: (userData.address.addressType as AddressType) || AddressType.SHIPPING,
+          streetAddress: userData.address.streetAddress,
+          city: userData.address.city,
+          postalCode: userData.address.postalCode,
+          country: userData.address.country,
+          state: userData.address.state,
+          isDefault: true
+        }, { transaction });
+      }
+
+      // Log user creation
+      if (createdBy) {
+        await AuditService.logUserAction({
+          userId: createdBy,
+          targetUserId: user.id,
+          action: AuditAction.CREATE,
+          resourceType: ResourceType.USER,
+          resourceId: user.id,
+          newValues: {
+            username: user.username,
+            email: user.email,
+            role: user.role
+          },
+          ipAddress: auditContext?.ipAddress,
+          userAgent: auditContext?.userAgent
+        }, { transaction });
+      }
+
+      await transaction.commit();
       return user;
     } catch (error: any) {
+      await transaction.rollback();
+
       // Handle unique constraint violations
       if (error.name === 'SequelizeUniqueConstraintError') {
-        const field = error.fields && Object.keys(error.fields)[0] || 'field';
+        const field = error.fields && error.fields.length > 0 ? error.fields[0] : 'field';
         throw new Error(`User with this ${field} already exists`);
       }
       throw error;
@@ -172,6 +228,9 @@ export class UserService {
       if (typeof userData.isActive === 'boolean') {
         updateData.isActive = userData.isActive;
       }
+      if (userData.phone !== undefined) {
+        updateData.phone = userData.phone || null;
+      }
 
       const [affectedRows] = await User.update(updateData, {
         where: { id },
@@ -190,8 +249,9 @@ export class UserService {
       });
     } catch (error: any) {
       if (error.name === 'SequelizeUniqueConstraintError') {
-        const field = error.fields && Object.keys(error.fields)[0] || 'field';
-        throw new Error(`User with this ${field} already exists`);
+        const field = error.fields ? Object.keys(error.fields)[0] : undefined;
+        const fieldName = field || 'field';
+        throw new Error(`User with this ${fieldName} already exists`);
       }
       throw error;
     }
@@ -382,10 +442,15 @@ export class UserService {
       return { emailExists: false, usernameExists: false };
     }
 
-    const where: WhereOptions = { [Op.or]: conditions };
-    
+    let where: WhereOptions = { [Op.or]: conditions };
+
     if (excludeId) {
-      where[Op.not] = { id: excludeId };
+      where = {
+        [Op.and]: [
+          { [Op.or]: conditions },
+          { id: { [Op.ne]: excludeId } }
+        ]
+      };
     }
 
     const existingUsers = await User.findAll({

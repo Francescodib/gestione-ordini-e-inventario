@@ -354,6 +354,13 @@ router.post('/',
       const orderData: CreateOrderRequest = req.body;
       const userId = req.user?.userId!;
 
+      // Detailed logging for debugging
+      logger.info('Order creation attempt', {
+        userId,
+        itemsCount: orderData.items?.length || 0,
+        orderData: JSON.stringify(orderData, null, 2)
+      });
+
       const order = await OrderService.createOrder(orderData, userId);
 
       res.status(201).json({
@@ -364,17 +371,33 @@ router.post('/',
     } catch (error: any) {
       logger.error('Error creating order', {
         error: error.message,
+        stack: error.stack,
+        name: error.name,
         userId: req.user?.userId,
-        orderData: req.body
+        orderData: JSON.stringify(req.body, null, 2)
       });
 
-      const statusCode = error.message.includes('not found') ? 404 :
-                        error.message.includes('not available') ? 400 :
-                        error.message.includes('Insufficient stock') ? 400 : 500;
+      // More specific error handling
+      let statusCode = 500;
+      let errorMessage = 'Order creation failed';
+
+      if (error.message.includes('not found')) {
+        statusCode = 404;
+        errorMessage = 'Resource not found';
+      } else if (error.message.includes('not available')) {
+        statusCode = 400;
+        errorMessage = 'Resource not available';
+      } else if (error.message.includes('Insufficient stock')) {
+        statusCode = 400;
+        errorMessage = 'Insufficient stock';
+      } else if (error.message.includes('validation')) {
+        statusCode = 400;
+        errorMessage = 'Validation error';
+      }
       
       res.status(statusCode).json({
         success: false,
-        message: 'Error creating order',
+        message: errorMessage,
         error: error.message
       });
     }

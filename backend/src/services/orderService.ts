@@ -3,7 +3,8 @@
  * Comprehensive order management with workflow states and business logic
  */
 
-import { Order, OrderItem, OrderStatus, PaymentStatus, User, Product, Category } from '../models';
+import { Order, OrderItem, OrderStatus, PaymentStatus, User, Product, Category, UserAddress } from '../models';
+import { AddressService } from './addressService';
 import { sequelize } from '../config/database';
 import { logger, logUtils } from '../config/logger';
 import { ProductService } from './productService';
@@ -24,8 +25,14 @@ export interface CreateOrderItemRequest {
 
 export interface CreateOrderRequest {
   items: CreateOrderItemRequest[];
-  shippingAddress: OrderAddress;
+  // New address reference approach (preferred)
+  shippingAddressId?: number;
+  billingAddressId?: number;
+  // Legacy address approach (for backward compatibility)
+  shippingAddress?: OrderAddress;
   billingAddress?: OrderAddress;
+  // For admin users creating orders for clients
+  targetUserId?: number;
   notes?: string;
   currency?: string;
 }
@@ -44,6 +51,10 @@ export interface UpdateOrderRequest {
   trackingNumber?: string;
   cancelReason?: string;
   notes?: string;
+  // New address reference approach (preferred)
+  shippingAddressId?: number;
+  billingAddressId?: number;
+  // Legacy address approach (for backward compatibility)
   shippingAddress?: any;
   billingAddress?: any;
   subtotal?: number;
@@ -72,6 +83,8 @@ export interface OrderWithDetails extends Order {
     firstName: string;
     lastName: string;
   };
+  shippingAddressRef?: UserAddress;
+  billingAddressRef?: UserAddress;
 }
 
 export interface OrderFilters {
@@ -197,22 +210,16 @@ export class OrderService {
       // Generate unique order number
       const orderNumber = await this.generateOrderNumber();
 
-      // Use billing address same as shipping if not provided
-      const billingAddress = orderData.billingAddress || orderData.shippingAddress;
+      // Resolve addresses (both new reference system and legacy JSON)
+      const addressData = await this.resolveOrderAddresses(orderData, userId);
 
-      // Validate addresses using AddressUtils
-      if (!AddressUtils.validate(orderData.shippingAddress)) {
-        throw new Error('Invalid shipping address format');
-      }
+      // Create the order with the resolved address data
+      // For admin users creating orders for clients, use the target user ID
+      const orderUserId = orderData.targetUserId || userId;
 
-      if (orderData.billingAddress && !AddressUtils.validate(orderData.billingAddress)) {
-        throw new Error('Invalid billing address format');
-      }
-
-      // Create the order
       const newOrder = await Order.create({
         orderNumber,
-        userId,
+        userId: orderUserId,
         status: OrderStatus.PENDING,
         paymentStatus: PaymentStatus.PENDING,
         subtotal,
@@ -221,8 +228,10 @@ export class OrderService {
         discountAmount,
         totalAmount,
         currency: orderData.currency || 'EUR',
-        shippingAddress: AddressUtils.toJson(orderData.shippingAddress),
-        billingAddress: AddressUtils.toJson(billingAddress),
+        shippingAddressId: addressData.shippingAddressId,
+        billingAddressId: addressData.billingAddressId,
+        shippingAddress: addressData.shippingAddress,
+        billingAddress: addressData.billingAddress,
         notes: orderData.notes,
       }, { transaction });
 
@@ -262,6 +271,16 @@ export class OrderService {
             model: User,
             as: 'user',
             attributes: ['id', 'email', 'firstName', 'lastName']
+          },
+          {
+            model: UserAddress,
+            as: 'shippingAddressRef',
+            required: false
+          },
+          {
+            model: UserAddress,
+            as: 'billingAddressRef',
+            required: false
           }
         ]
       });
@@ -420,7 +439,7 @@ export class OrderService {
           ]
         });
       }
-      
+
       if (includeUser) {
         includeClause.push({
           model: User,
@@ -428,6 +447,20 @@ export class OrderService {
           attributes: ['id', 'email', 'firstName', 'lastName']
         });
       }
+
+      // Always include address references (optional)
+      includeClause.push(
+        {
+          model: UserAddress,
+          as: 'shippingAddressRef',
+          required: false
+        },
+        {
+          model: UserAddress,
+          as: 'billingAddressRef',
+          required: false
+        }
+      );
 
       // Execute queries in parallel
       const [orders, total] = await Promise.all([
@@ -474,12 +507,12 @@ export class OrderService {
       const startTime = Date.now();
 
       const whereClause: WhereOptions = { id };
-      
+
       // If userId provided, ensure user can only access their own orders (unless admin)
       if (userId) {
         whereClause.userId = userId;
       }
-      
+
       const order = await Order.findOne({
         where: whereClause,
         include: [
@@ -503,6 +536,16 @@ export class OrderService {
             model: User,
             as: 'user',
             attributes: ['id', 'email', 'firstName', 'lastName']
+          },
+          {
+            model: UserAddress,
+            as: 'shippingAddressRef',
+            required: false
+          },
+          {
+            model: UserAddress,
+            as: 'billingAddressRef',
+            required: false
           }
         ]
       });
@@ -550,6 +593,16 @@ export class OrderService {
             model: User,
             as: 'user',
             attributes: ['id', 'email', 'firstName', 'lastName']
+          },
+          {
+            model: UserAddress,
+            as: 'shippingAddressRef',
+            required: false
+          },
+          {
+            model: UserAddress,
+            as: 'billingAddressRef',
+            required: false
           }
         ]
       });
@@ -615,14 +668,21 @@ export class OrderService {
               transaction
             });
           } else {
-            // Create new item
+            // Create new item - get product information for name and sku
+            const product = await Product.findByPk(itemData.productId);
+            if (!product) {
+              throw new Error(`Product with ID ${itemData.productId} not found`);
+            }
+
+            const unitPrice = itemData.price || product.price;
             await OrderItem.create({
               orderId: id,
               productId: itemData.productId,
+              name: product.name,  // Store product name at time of order
+              sku: product.sku,    // Store product SKU at time of order
               quantity: itemData.quantity,
-              unitPrice: itemData.price || 0,
-              totalPrice: itemData.totalPrice || (itemData.price! * itemData.quantity),
-              sku: `SKU-${itemData.productId}` // Simplified SKU generation
+              price: unitPrice,    // Price applied at time of order
+              totalPrice: itemData.totalPrice || (unitPrice * itemData.quantity)
             }, { transaction });
           }
         }
@@ -638,10 +698,19 @@ export class OrderService {
 
       // Prepare update data (exclude items and userId as they're handled separately)
       // IMPORTANT: Never allow userId to be updated - preserve original customer
-      const { items, userId, ...updatePayload } = {
+      const { items, userId, ...rawUpdatePayload } = {
         ...updateData,
         updatedAt: new Date(),
       };
+
+      // Convert address objects to JSON strings if they are objects
+      const updatePayload = { ...rawUpdatePayload };
+      if (updatePayload.shippingAddress && typeof updatePayload.shippingAddress === 'object') {
+        updatePayload.shippingAddress = JSON.stringify(updatePayload.shippingAddress);
+      }
+      if (updatePayload.billingAddress && typeof updatePayload.billingAddress === 'object') {
+        updatePayload.billingAddress = JSON.stringify(updatePayload.billingAddress);
+      }
 
       // Capture original statuses before update for notifications
       const originalStatus = existingOrder.status;
@@ -677,6 +746,16 @@ export class OrderService {
             model: User,
             as: 'user',
             attributes: ['id', 'email', 'firstName', 'lastName']
+          },
+          {
+            model: UserAddress,
+            as: 'shippingAddressRef',
+            required: false
+          },
+          {
+            model: UserAddress,
+            as: 'billingAddressRef',
+            required: false
           }
         ]
       });
@@ -758,6 +837,84 @@ export class OrderService {
     } catch (error: any) {
       throw error;
     }
+  }
+
+  // ==========================================
+  // ADDRESS MANAGEMENT HELPERS
+  // ==========================================
+
+  /**
+   * Resolve address for order creation - supports both new reference system and legacy JSON
+   */
+  private static async resolveOrderAddresses(
+    orderData: CreateOrderRequest,
+    userId: number
+  ): Promise<{ shippingAddressId?: number; billingAddressId?: number; shippingAddress?: string; billingAddress?: string }> {
+    const result: {
+      shippingAddressId?: number;
+      billingAddressId?: number;
+      shippingAddress?: string;
+      billingAddress?: string
+    } = {};
+
+    // Handle shipping address
+    if (orderData.shippingAddressId) {
+      // New approach: use address reference
+      // For ADMIN/MANAGER users creating orders for clients, check the order's target user
+      const targetUserId = orderData.targetUserId || userId;
+      const shippingAddr = await AddressService.getAddressById(orderData.shippingAddressId, targetUserId);
+
+      if (!shippingAddr) {
+        // If not found with target user, try without user restriction (for admin access)
+        const shippingAddrAnyUser = await AddressService.getAddressById(orderData.shippingAddressId);
+        if (!shippingAddrAnyUser) {
+          throw new Error(`Shipping address with ID ${orderData.shippingAddressId} not found`);
+        }
+        result.shippingAddressId = orderData.shippingAddressId;
+      } else {
+        result.shippingAddressId = orderData.shippingAddressId;
+      }
+    } else if (orderData.shippingAddress) {
+      // Legacy approach: use JSON address
+      if (!AddressUtils.validate(orderData.shippingAddress)) {
+        throw new Error('Invalid shipping address format');
+      }
+      result.shippingAddress = AddressUtils.toJson(orderData.shippingAddress);
+    } else {
+      throw new Error('Either shippingAddressId or shippingAddress must be provided');
+    }
+
+    // Handle billing address (optional)
+    if (orderData.billingAddressId) {
+      // New approach: use address reference
+      // For ADMIN/MANAGER users creating orders for clients, check the order's target user
+      const targetUserId = orderData.targetUserId || userId;
+      const billingAddr = await AddressService.getAddressById(orderData.billingAddressId, targetUserId);
+      if (!billingAddr) {
+        // If not found with target user, try without user restriction (for admin access)
+        const billingAddrAnyUser = await AddressService.getAddressById(orderData.billingAddressId);
+        if (!billingAddrAnyUser) {
+          throw new Error(`Billing address with ID ${orderData.billingAddressId} not found`);
+        }
+        result.billingAddressId = orderData.billingAddressId;
+      } else {
+        result.billingAddressId = orderData.billingAddressId;
+      }
+    } else if (orderData.billingAddress) {
+      // Legacy approach: use JSON address
+      if (!AddressUtils.validate(orderData.billingAddress)) {
+        throw new Error('Invalid billing address format');
+      }
+      result.billingAddress = AddressUtils.toJson(orderData.billingAddress);
+    } else if (result.shippingAddressId) {
+      // Use same address as shipping if using new approach
+      result.billingAddressId = result.shippingAddressId;
+    } else if (result.shippingAddress) {
+      // Use same address as shipping if using legacy approach
+      result.billingAddress = result.shippingAddress;
+    }
+
+    return result;
   }
 
   // ==========================================

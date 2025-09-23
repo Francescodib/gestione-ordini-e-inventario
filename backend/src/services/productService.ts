@@ -142,7 +142,7 @@ export class ProductService {
         name: productData.name,
         description: productData.description,
         sku: productData.sku.toUpperCase(),
-        barcode: productData.barcode && productData.barcode.trim() !== '' ? productData.barcode : null,
+        barcode: productData.barcode && productData.barcode.trim() !== '' ? productData.barcode : undefined,
         categoryId: productData.categoryId,
         price: productData.price,
         costPrice: productData.costPrice,
@@ -569,29 +569,6 @@ export class ProductService {
     }
   }
 
-  /**
-   * Get low stock products
-   */
-  static async getLowStockProducts(): Promise<Product[]> {
-    try {
-      const products = await Product.findAll({
-        where: {
-          isActive: true,
-          stock: {
-            [Op.lte]: sequelize.col('minStock'),
-            [Op.gt]: 0
-          }
-        },
-        include: [{ model: Category, as: 'category' }],
-        order: [['stock', 'ASC']]
-      });
-
-      return products;
-    } catch (error: any) {
-      logUtils.logDbOperation('SELECT', 'products', undefined, error);
-      throw error;
-    }
-  }
 
   /**
    * Get out of stock products
@@ -720,8 +697,9 @@ export class ProductService {
         sequelize.query(`
           SELECT COUNT(*) as count
           FROM products
-          WHERE isActive = 1 AND stock > 0 AND stock <= minStock
+          WHERE stock <= minStock
         `, { type: QueryTypes.SELECT }).then((result: any) => result[0]?.count || 0),
+
 
         // Value statistics - using separate aggregations for sum and average
         sequelize.query(`

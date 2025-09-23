@@ -3,6 +3,18 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { orderService } from '../services/api';
 import type { Order } from '../services/api';
 import { AddressUtils } from '../types/orderAddress';
+
+// Inline temporary interface to avoid import issues
+interface SimpleAddress {
+  firstName?: string;
+  lastName?: string;
+  address1?: string;
+  streetAddress?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  phone?: string;
+}
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -171,15 +183,21 @@ const OrderDetailPage: React.FC = () => {
   };
 
   const getCustomerName = (order: Order): string => {
-    // Use the unified AddressUtils to get customer info
+    // Use the same logic as OrdersPage - prioritize shipping address for customer name
     const customerInfo = AddressUtils.getCustomerInfo(order.shippingAddress);
 
-    // If address parsing fails and we have user info, use that as fallback
-    if (customerInfo.name === 'N/A' && order.user) {
+    // If address parsing succeeds, use that
+    if (customerInfo.name !== 'N/A') {
+      return customerInfo.name;
+    }
+
+    // Fallback to user info if address doesn't contain customer name
+    if (order.user && order.user.firstName && order.user.lastName) {
       return `${order.user.firstName} ${order.user.lastName}`;
     }
 
-    return customerInfo.name;
+    // Final fallback
+    return order.user ? `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim() || 'N/A' : 'N/A';
   };
 
   const formatAddress = (addressString: string | Record<string, unknown>) => {
@@ -188,15 +206,49 @@ const OrderDetailPage: React.FC = () => {
       return 'Indirizzo non disponibile';
     }
 
-    // Use the unified AddressUtils for formatting
-    if (typeof addressString === 'string') {
-      const address = AddressUtils.fromJson(addressString);
-      return address ? AddressUtils.format(address) : addressString;
-    } else if (typeof addressString === 'object') {
-      // If it's already an object, validate and format it
-      if (AddressUtils.validate(addressString)) {
-        return AddressUtils.format(addressString);
+    try {
+      let address: SimpleAddress | null = null;
+
+      if (typeof addressString === 'string') {
+        // Try to parse from JSON string
+        address = JSON.parse(addressString);
+      } else if (typeof addressString === 'object') {
+        address = addressString as SimpleAddress;
       }
+
+      if (address) {
+        const parts = [];
+
+        // Name
+        if (address.firstName || address.lastName) {
+          parts.push(`${address.firstName || ''} ${address.lastName || ''}`.trim());
+        }
+
+        // Address
+        if (address.address1) {
+          parts.push(address.address1);
+        } else if (address.streetAddress) {
+          parts.push(address.streetAddress);
+        }
+
+        // City and postal code
+        if (address.city) {
+          let cityLine = address.city;
+          if (address.postalCode) {
+            cityLine += ` ${address.postalCode}`;
+          }
+          parts.push(cityLine);
+        }
+
+        // Country
+        if (address.country) {
+          parts.push(address.country);
+        }
+
+        return parts.filter(Boolean).join('\n') || 'Indirizzo non disponibile';
+      }
+    } catch (error) {
+      console.log('Address parse error:', error);
     }
 
     return 'Indirizzo non disponibile';

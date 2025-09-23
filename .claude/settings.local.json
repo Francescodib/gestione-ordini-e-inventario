@@ -32,7 +32,11 @@
       "Bash(sudo lsof:*)",
       "Bash(xargs:*)",
       "Bash(cat:*)",
-      "Bash(export TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQsImVtYWlsIjoiZGVtb0BkZW1vLmNvbSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1ODQ3MjQxNSwiZXhwIjoxNzU4NTU4ODE1fQ.CAiRIAydROPu5XaTWGcEH8qRF2GjXjfqGZJQZPLJWUU\")"
+      "Bash(export TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQsImVtYWlsIjoiZGVtb0BkZW1vLmNvbSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1ODQ3MjQxNSwiZXhwIjoxNzU4NTU4ODE1fQ.CAiRIAydROPu5XaTWGcEH8qRF2GjXjfqGZJQZPLJWUU\")",
+      "Bash(npm test:*)",
+      "Bash(export TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjE2LCJlbWFpbCI6InRlc3R1c2VyX25ld0B0ZXN0LmNvbSIsInJvbGUiOiJDTElFTlQiLCJpYXQiOjE3NTg2MTIwNDUsImV4cCI6MTc1ODY5ODQ0NX0._jrYy1UkOgFLdvNqhU-eNiVbz1aJxyMYRhSiS5phC9g\")",
+      "Bash(export:*)",
+      "Read(//tmp/**)"
     ],
     "deny": [],
     "ask": []

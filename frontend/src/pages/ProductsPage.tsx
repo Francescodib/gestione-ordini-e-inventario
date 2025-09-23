@@ -13,7 +13,8 @@ import ProductImageGallery from '../components/ProductImageGallery';
 const ProductsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -21,12 +22,46 @@ const ProductsPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoryId') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [lowStockFilter, setLowStockFilter] = useState(searchParams.get('lowStock') === 'true');
-  const [showFilters, setShowFilters] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
     loadData();
   }, [searchParams]); // loadData depends on searchParams, which is stable
+
+  // Update filter state from URL params
+  useEffect(() => {
+    setSearchQuery(searchParams.get('search')?.trim() || '');
+    setSelectedCategory(searchParams.get('categoryId') || '');
+    setStatusFilter(searchParams.get('status') || '');
+    setLowStockFilter(searchParams.get('lowStock') === 'true');
+  }, [searchParams]);
+
+  // Apply client-side filters
+  useEffect(() => {
+    let filtered = [...allProducts];
+
+    // Apply category filter
+    if (selectedCategory) {
+      const categoryId = Number.parseInt(selectedCategory, 10);
+      if (!Number.isNaN(categoryId)) {
+        filtered = filtered.filter(product => product.category?.id === categoryId);
+      }
+    }
+
+    // Apply status filter
+    if (statusFilter) {
+      filtered = filtered.filter(product => product.status === statusFilter);
+    }
+
+    // Apply low stock filter
+    if (lowStockFilter) {
+      filtered = filtered.filter(product =>
+        product.stock <= (product.minStock || 0)
+      );
+    }
+
+    setFilteredProducts(filtered);
+  }, [allProducts, selectedCategory, statusFilter, lowStockFilter]);
 
   const loadData = async () => {
     try {
@@ -34,34 +69,20 @@ const ProductsPage: React.FC = () => {
       setError('');
 
       const searchValue = searchParams.get('search');
-      const categoryValue = searchParams.get('categoryId');
-      const statusValue = searchParams.get('status');
-      const lowStockValue = searchParams.get('lowStock') === 'true';
       const pageParam = searchParams.get('page');
       const limitParam = searchParams.get('limit');
 
-      // Determine if this is a search operation
-      const isSearchOperation = !!(searchValue || categoryValue || statusValue || lowStockValue);
+      // Determine if this is a search operation (only for search query, not filters)
+      const isSearchOperation = !!(searchValue);
       setHasSearched(isSearchOperation);
 
-      let categoryId: number | undefined;
-      if (categoryValue) {
-        const parsedCategory = Number.parseInt(categoryValue, 10);
-        if (!Number.isNaN(parsedCategory)) {
-          categoryId = parsedCategory;
-        }
-      }
-
       const pageNumber = Number.parseInt(pageParam || '1', 10);
-      const limitNumber = Number.parseInt(limitParam || '50', 10);
+      const limitNumber = Number.parseInt(limitParam || '100', 10); // Increased limit for client-side filtering
 
       const params = {
         search: searchValue?.trim() ? searchValue.trim() : undefined,
-        categoryId,
-        status: statusValue || undefined,
-        lowStock: lowStockValue || undefined,
         page: Number.isNaN(pageNumber) ? 1 : pageNumber,
-        limit: Number.isNaN(limitNumber) ? 50 : limitNumber
+        limit: Number.isNaN(limitNumber) ? 100 : limitNumber
       };
 
       const [productsResponse, categoriesResponse] = await Promise.all([
@@ -70,7 +91,7 @@ const ProductsPage: React.FC = () => {
       ]);
 
       if (productsResponse.success && productsResponse.data) {
-        setProducts(productsResponse.data);
+        setAllProducts(productsResponse.data);
       }
 
       if (categoriesResponse.success && categoriesResponse.data) {
@@ -88,30 +109,11 @@ const ProductsPage: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const newParams = new URLSearchParams(searchParams);
-    
+
     if (searchQuery) {
       newParams.set('search', searchQuery);
     } else {
       newParams.delete('search');
-    }
-    
-    if (selectedCategory) {
-      newParams.set('categoryId', selectedCategory);
-    } else {
-      newParams.delete('categoryId');
-    }
-    newParams.delete('category');
-    
-    if (statusFilter) {
-      newParams.set('status', statusFilter);
-    } else {
-      newParams.delete('status');
-    }
-
-    if (lowStockFilter) {
-      newParams.set('lowStock', 'true');
-    } else {
-      newParams.delete('lowStock');
     }
 
     newParams.set('page', '1'); // Reset to first page
@@ -119,6 +121,12 @@ const ProductsPage: React.FC = () => {
   };
 
   const clearFilters = () => {
+    setSelectedCategory('');
+    setStatusFilter('');
+    setLowStockFilter(false);
+  };
+
+  const clearAll = () => {
     setSearchQuery('');
     setSelectedCategory('');
     setStatusFilter('');
@@ -295,7 +303,7 @@ const ProductsPage: React.FC = () => {
           <ErrorMessage message={error} onDismiss={() => setError('')} />
         )}
 
-        {/* Filters */}
+        {/* Search */}
         <Card>
           <form onSubmit={handleSearch} className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-end sm:space-x-4 space-y-4 sm:space-y-0">
@@ -318,103 +326,109 @@ const ProductsPage: React.FC = () => {
                 </Button>
               </div>
               <div>
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  onClick={() => setShowFilters(!showFilters)}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={clearAll}
                 >
-                  Filtri
+                  Reset
                 </Button>
               </div>
             </div>
-
-            {showFilters && (
-              <div className="pt-4 border-t border-gray-200">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Categoria
-                    </label>
-                    <select
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    >
-                      <option value="">Tutte le categorie</option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Stato
-                    </label>
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    >
-                      <option value="">Tutti gli stati</option>
-                      <option value="ACTIVE">Attivo</option>
-                      <option value="INACTIVE">Inattivo</option>
-                      <option value="OUT_OF_STOCK">Esaurito</option>
-                      <option value="DISCONTINUED">Discontinuo</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Filtri Avanzati
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={lowStockFilter}
-                        onChange={(e) => setLowStockFilter(e.target.checked)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">Solo prodotti a scorte basse</span>
-                    </label>
-                  </div>
-                  <div className="flex items-end">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={clearFilters}
-                      fullWidth
-                    >
-                      Pulisci Filtri
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
           </form>
         </Card>
 
-        {/* Results Summary */}
-        {!loading && hasSearched && (
-          <div className="text-sm text-gray-600">
-            Trovati {products.length} prodotti
-            {searchQuery && ` per "${searchQuery}"`}
-            {selectedCategory && ` nella categoria selezionata`}
-            {statusFilter && ` con stato "${getStatusText(statusFilter)}"`}
-            {lowStockFilter && ` con scorte basse`}
-          </div>
-        )}
+        {/* Filters */}
+        <Card>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium text-gray-900">Filtri visualizzazione</h3>
+            </div>
 
-        {/* Default State Message */}
-        {!loading && !hasSearched && (
-          <div className="text-sm text-gray-600">
-            Visualizzazione di tutti i prodotti disponibili
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Categoria
+                </label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                >
+                  <option value="">Tutte le categorie</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Stato
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                >
+                  <option value="">Tutti gli stati</option>
+                  <option value="ACTIVE">Attivo</option>
+                  <option value="INACTIVE">Inattivo</option>
+                  <option value="OUT_OF_STOCK">Esaurito</option>
+                  <option value="DISCONTINUED">Discontinuo</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Filtri Avanzati
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={lowStockFilter}
+                    onChange={(e) => setLowStockFilter(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Solo prodotti a scorte basse</span>
+                </label>
+              </div>
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={clearFilters}
+                  fullWidth
+                >
+                  Pulisci Filtri
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Results Summary */}
+        {!loading && (
+          <div className="text-sm text-gray-600 space-y-1">
+            <div>
+              Visualizzazione di {filteredProducts.length} prodotti
+              {allProducts.length !== filteredProducts.length && ` su ${allProducts.length} totali`}
+              {searchQuery && ` con ricerca: "${searchQuery}"`}
+            </div>
+            {(selectedCategory || statusFilter || lowStockFilter) && (
+              <div className="text-xs">
+                Filtri attivi:
+                {selectedCategory && ` Categoria: ${categories.find(c => c.id.toString() === selectedCategory)?.name}`}
+                {statusFilter && ` Stato: ${getStatusText(statusFilter)}`}
+                {lowStockFilter && ` Scorte basse`}
+              </div>
+            )}
           </div>
         )}
 
         {/* Products Table */}
         <Table
-          data={products}
+          data={filteredProducts}
           columns={columns}
           loading={loading}
           emptyText="Nessun prodotto trovato"
@@ -425,7 +439,7 @@ const ProductsPage: React.FC = () => {
         />
 
         {/* Pagination would go here */}
-        {products.length >= 50 && (
+        {filteredProducts.length >= 50 && (
           <div className="flex justify-center">
             <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
               <Button variant="secondary" size="sm">

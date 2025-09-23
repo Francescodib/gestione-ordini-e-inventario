@@ -8,6 +8,7 @@ import Table from '../components/Table';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import ErrorMessage from '../components/ErrorMessage';
+import UserAvatar from '../components/UserAvatar';
 import { useAuth } from '../contexts/AuthContext';
 
 const UsersPage: React.FC = () => {
@@ -61,7 +62,9 @@ const UsersPage: React.FC = () => {
       const response = await authService.getAllUsers();
 
       if (response.success && response.data) {
-        setUsers(response.data);
+        // Filter to show only active users by default
+        const activeUsers = response.data.filter(user => user.isActive);
+        setUsers(activeUsers);
       }
 
     } catch (err: unknown) {
@@ -201,16 +204,19 @@ const UsersPage: React.FC = () => {
       render: (_: any, record: User) => (
         <div className="flex items-center">
           <div className="h-10 w-10 flex-shrink-0">
-            <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-              <span className="text-sm font-medium text-gray-700">
-                {(record.firstName || record.username).charAt(0)}{(record.lastName || '').charAt(0) || (record.username || 'U').charAt(1)}
-              </span>
-            </div>
+            <UserAvatar
+              userId={record.id.toString()}
+              username={record.username}
+              firstName={record.firstName}
+              lastName={record.lastName}
+              size="lg"
+              showInitials={true}
+            />
           </div>
           <div className="ml-4">
             <div className="text-sm font-medium text-gray-900">
-              {record.firstName && record.lastName 
-                ? `${record.firstName} ${record.lastName}` 
+              {record.firstName && record.lastName
+                ? `${record.firstName} ${record.lastName}`
                 : record.username}
             </div>
             <div className="text-sm text-gray-500">@{record.username}</div>

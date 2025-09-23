@@ -11,6 +11,18 @@ export interface OrderAddress {
   phone?: string;
 }
 
+// Unified Address interface for consistency across User and Order models
+export interface UnifiedAddress {
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+  streetAddress: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  phone?: string;
+}
+
 export class AddressUtils {
   static validate(obj: any): obj is OrderAddress {
     return (
@@ -21,6 +33,17 @@ export class AddressUtils {
       typeof obj.address1 === 'string' &&
       typeof obj.city === 'string' &&
       typeof obj.state === 'string' &&
+      typeof obj.postalCode === 'string' &&
+      typeof obj.country === 'string'
+    );
+  }
+
+  static validateUnified(obj: any): obj is UnifiedAddress {
+    return (
+      obj &&
+      typeof obj === 'object' &&
+      typeof obj.streetAddress === 'string' &&
+      typeof obj.city === 'string' &&
       typeof obj.postalCode === 'string' &&
       typeof obj.country === 'string'
     );
@@ -76,5 +99,63 @@ export class AddressUtils {
       name: 'N/A',
       subtitle: ''
     };
+  }
+
+  // Unified Address conversion methods
+  static fromUnifiedToLegacy(unifiedAddr: UnifiedAddress): OrderAddress {
+    return {
+      firstName: unifiedAddr.firstName || '',
+      lastName: unifiedAddr.lastName || '',
+      company: unifiedAddr.company,
+      address1: unifiedAddr.streetAddress,
+      city: unifiedAddr.city,
+      state: '', // Not used in unified format
+      postalCode: unifiedAddr.postalCode,
+      country: unifiedAddr.country,
+      phone: unifiedAddr.phone
+    };
+  }
+
+  static fromLegacyToUnified(orderAddr: OrderAddress): UnifiedAddress {
+    return {
+      firstName: orderAddr.firstName,
+      lastName: orderAddr.lastName,
+      company: orderAddr.company,
+      streetAddress: [orderAddr.address1, orderAddr.address2].filter(Boolean).join(', '),
+      city: orderAddr.city,
+      postalCode: orderAddr.postalCode,
+      country: orderAddr.country,
+      phone: orderAddr.phone
+    };
+  }
+
+  static formatUnified(address: UnifiedAddress): string {
+    const parts = [];
+    if (address.firstName || address.lastName) {
+      parts.push(`${address.firstName || ''} ${address.lastName || ''}`.trim());
+    }
+    if (address.company) {
+      parts.push(address.company);
+    }
+    parts.push(address.streetAddress);
+    parts.push(`${address.city} ${address.postalCode}`);
+    parts.push(address.country);
+    return parts.filter(Boolean).join('\n');
+  }
+
+  static parseAddressString(addressString: string): UnifiedAddress | null {
+    try {
+      const parsed = JSON.parse(addressString);
+      if (parsed.address1) {
+        // Legacy format
+        return this.fromLegacyToUnified(parsed);
+      } else if (this.validateUnified(parsed)) {
+        // Unified format
+        return parsed;
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 }
