@@ -3,7 +3,7 @@
  * File: src/services/userService.ts
  */
 
-import { User, UserRole, UserAddress, AddressType } from '../models';
+import { User, UserRole, UserAddress, AddressType, AuditLog, Order } from '../models';
 import { AuditService } from './auditService';
 import { AuditAction, ResourceType } from '../models';
 import { sequelize } from '../config/database';
@@ -391,7 +391,10 @@ export class UserService {
    * Get user statistics
    */
   static async getUserStats() {
-    const [total, active, inactive, byRole] = await Promise.all([
+    const currentDate = new Date();
+    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+
+    const [total, active, inactive, byRole, newThisMonth] = await Promise.all([
       User.count(),
       User.count({ where: { isActive: true } }),
       User.count({ where: { isActive: false } }),
@@ -402,6 +405,13 @@ export class UserService {
         ],
         group: ['role'],
         raw: true
+      }),
+      User.count({
+        where: {
+          createdAt: {
+            [Op.gte]: firstDayOfMonth
+          }
+        }
       })
     ]);
 
@@ -414,9 +424,10 @@ export class UserService {
       totalUsers: total,
       activeUsers: active,
       inactiveUsers: inactive,
+      newThisMonth: newThisMonth,
       adminUsers: roleStats.admin || 0,
       managerUsers: roleStats.manager || 0,
-      regularUsers: roleStats.user || 0
+      clientUsers: roleStats.client || 0
     };
   }
 
@@ -462,5 +473,199 @@ export class UserService {
     const usernameExists = username ? existingUsers.some(user => user.username === username.toLowerCase().trim()) : false;
 
     return { emailExists, usernameExists };
+  }
+
+  /**
+   * Get inactive users (users who haven't logged in for a specified period)
+   */
+  static async getInactiveUsers(inactiveDays: number = 90): Promise<User[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - inactiveDays);
+
+    return await User.findAll({
+      where: {
+        [Op.or]: [
+          { lastLogin: { [Op.lt]: cutoffDate } },
+          { lastLogin: { [Op.is]: null } }
+        ],
+        isActive: false
+      },
+      order: [['lastLogin', 'ASC']]
+    });
+  }
+
+  /**
+   * Check user dependencies before safe deletion
+   */
+  static async checkUserDependencies(userId: number): Promise<{
+    canDelete: boolean;
+    dependencies: {
+      orders: number;
+      auditLogs: number;
+      createdUsers: number;
+      addresses: number;
+    };
+    warnings: string[];
+  }> {
+    const [orders, auditLogs, addresses] = await Promise.all([
+      Order.count({ where: { userId } }),
+      AuditLog.count({ where: { [Op.or]: [{ userId }, { targetUserId: userId }] } }),
+      UserAddress.count({ where: { userId } })
+    ]);
+
+    // Set createdUsers to 0 since User model doesn't have createdBy field
+    const createdUsers = 0;
+
+    const warnings = [];
+    let canDelete = true;
+
+    if (orders > 0) {
+      warnings.push(`L'utente ha ${orders} ordini associati`);
+      canDelete = false;
+    }
+
+    if (auditLogs > 0) {
+      warnings.push(`L'utente ha ${auditLogs} log di audit associati`);
+    }
+
+    if (createdUsers > 0) {
+      warnings.push(`L'utente ha creato ${createdUsers} altri utenti`);
+      canDelete = false;
+    }
+
+    if (addresses > 0) {
+      warnings.push(`L'utente ha ${addresses} indirizzi associati`);
+    }
+
+    // Never allow deletion of ADMIN users
+    const user = await User.findByPk(userId);
+    if (user?.role === 'ADMIN') {
+      warnings.push('Non è possibile eliminare utenti con ruolo ADMIN');
+      canDelete = false;
+    }
+
+    return {
+      canDelete,
+      dependencies: {
+        orders,
+        auditLogs,
+        createdUsers,
+        addresses
+      },
+      warnings
+    };
+  }
+
+  /**
+   * Safely delete inactive users with dependency checks
+   */
+  static async safeDeleteInactiveUsers(
+    userIds: number[],
+    performedBy: number
+  ): Promise<{
+    deleted: number[];
+    skipped: { userId: number; reasons: string[] }[];
+    errors: { userId: number; error: string }[];
+  }> {
+    const deleted: number[] = [];
+    const skipped: { userId: number; reasons: string[] }[] = [];
+    const errors: { userId: number; error: string }[] = [];
+
+    for (const userId of userIds) {
+      try {
+        const dependencyCheck = await this.checkUserDependencies(userId);
+
+        if (!dependencyCheck.canDelete) {
+          skipped.push({
+            userId,
+            reasons: dependencyCheck.warnings
+          });
+          continue;
+        }
+
+        // Perform the deletion in a transaction
+        await sequelize.transaction(async (transaction) => {
+          const user = await User.findByPk(userId, { transaction });
+          if (!user) {
+            throw new Error('Utente non trovato');
+          }
+
+          // Create audit log
+          await AuditLog.create({
+            userId: performedBy,
+            targetUserId: userId,
+            action: AuditAction.DELETE,
+            resourceType: ResourceType.USER,
+            resourceId: userId,
+            createdBy: performedBy,
+            oldValues: {
+              username: user.username,
+              email: user.email,
+              role: user.role,
+              isActive: user.isActive
+            }
+          }, { transaction });
+
+          // Delete associated addresses first (cascade)
+          await UserAddress.destroy({
+            where: { userId },
+            transaction
+          });
+
+          // Delete the user
+          await user.destroy({ transaction });
+        });
+
+        deleted.push(userId);
+      } catch (error: any) {
+        errors.push({
+          userId,
+          error: error.message || 'Errore durante l\'eliminazione'
+        });
+      }
+    }
+
+    return { deleted, skipped, errors };
+  }
+
+  /**
+   * Export users to CSV format
+   */
+  static async exportUsersToCSV(includeInactive: boolean = false): Promise<string> {
+    const whereClause = includeInactive ? {} : { isActive: true };
+
+    const users = await User.findAll({
+      where: whereClause,
+      attributes: [
+        'id', 'username', 'firstName', 'lastName', 'email', 'role',
+        'isActive', 'emailVerified', 'lastLogin', 'createdAt', 'updatedAt'
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    const headers = [
+      'ID', 'Username', 'Nome', 'Cognome', 'Email', 'Ruolo',
+      'Attivo', 'Email Verificata', 'Ultimo Login', 'Data Registrazione', 'Ultimo Aggiornamento'
+    ];
+
+    const rows = users.map(user => [
+      user.id,
+      user.username,
+      user.firstName || '',
+      user.lastName || '',
+      user.email,
+      user.role,
+      user.isActive ? 'Sì' : 'No',
+      user.emailVerified ? 'Sì' : 'No',
+      user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('it-IT') : 'Mai',
+      new Date(user.createdAt).toLocaleDateString('it-IT'),
+      new Date(user.updatedAt).toLocaleDateString('it-IT')
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(field => `"${field}"`).join(','))
+      .join('\n');
+
+    return csvContent;
   }
 }

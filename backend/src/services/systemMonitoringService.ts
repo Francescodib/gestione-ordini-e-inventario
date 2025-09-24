@@ -645,8 +645,8 @@ export class SystemMonitoringService {
    */
   private updateApplicationPrometheusMetrics(metrics: ApplicationMetrics): void {
     // Update business metrics
-    this.metrics.usersTotal.labels('USER', 'active').set(metrics.business.activeUsers);
-    this.metrics.usersTotal.labels('USER', 'total').set(metrics.business.totalUsers);
+    this.metrics.usersTotal.labels('CLIENT', 'active').set(metrics.business.activeUsers);
+    this.metrics.usersTotal.labels('CLIENT', 'total').set(metrics.business.totalUsers);
     this.metrics.productsTotal.labels('ACTIVE').set(metrics.business.activeProducts);
     this.metrics.ordersTotal.labels('PENDING').set(metrics.business.pendingOrders);
     this.metrics.inventoryValue.set(metrics.business.inventoryValue);

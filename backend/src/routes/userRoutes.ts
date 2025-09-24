@@ -7,40 +7,11 @@ import express, { Request, Response } from 'express';
 import { UserService, CreateUserRequest, UpdateUserRequest, LoginRequest, UserResponse } from '../services/userService';
 import { AddressService, CreateAddressRequest, UpdateAddressRequest } from '../services/addressService';
 import { AuthService } from '../services/authService';
-import {
-  verifyToken,
-  requireAdmin,
-  requireManager,
-  requireSelfOrAdmin,
-  requireSelfOrManager,
-  requireUserCreationAuth,
-  requireRoleChangeAuth,
-  requireClientForAddress,
-  validateRequest,
-  securityHeaders
-} from '../middleware/authEnhanced';
-import { verifyToken as verifyTokenStandard } from '../middleware/auth';
+import { verifyToken, requireAdmin, requireManagerOrAdmin } from '../middleware/auth';
 import { logger } from '../config/logger';
-import {
-  validateBody,
-  validateQuery,
-  validateId,
-  sanitizeInput,
-  validateContentType,
-  handleValidationErrors
-} from "../middleware/validation";
-import {
-  createUserSchema,
-  loginUserSchema,
-  updateUserSchema,
-  changePasswordSchema,
-  paginationSchema
-} from "../validation/schemas";
 
 const router = express.Router();
 
-// Apply security headers to all routes
-router.use(securityHeaders);
 
 // Helper function to parse ID
 const parseIntId = (id: string): number => {
@@ -60,9 +31,6 @@ const parseIntId = (id: string): number => {
  * User registration - only creates basic user, address is handled separately
  */
 router.post('/register',
-  sanitizeInput(),
-  validateContentType(),
-  validateBody(createUserSchema),
   async (req: Request, res: Response) => {
     try {
       const userData: CreateUserRequest = req.body;
@@ -145,9 +113,6 @@ router.post('/register',
  * User authentication
  */
 router.post('/login',
-  sanitizeInput(),
-  validateContentType(),
-  validateBody(loginUserSchema),
   async (req: Request, res: Response) => {
     try {
       const { email, password }: LoginRequest = req.body;
@@ -248,7 +213,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
  * GET /api/users/me
  * Get current user profile
  */
-router.get('/me', verifyTokenStandard, async (req: Request, res: Response) => {
+router.get('/me', verifyToken, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
@@ -299,8 +264,8 @@ router.get('/me', verifyTokenStandard, async (req: Request, res: Response) => {
  * Get all users (Admin/Manager only)
  */
 router.get('/',
-  requireManager,
-  validateQuery(paginationSchema, { allowUnknown: true }),
+  verifyToken,
+  requireManagerOrAdmin,
   async (req: Request, res: Response) => {
     try {
       const { page = 1, limit = 10, role, active } = req.query;
@@ -348,7 +313,7 @@ router.get('/',
  * GET /api/users/search
  * Search users (Admin/Manager only)
  */
-router.get('/search', requireManager, async (req: Request, res: Response) => {
+router.get('/search', verifyToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
   try {
     const { q } = req.query;
 
@@ -393,7 +358,7 @@ router.get('/search', requireManager, async (req: Request, res: Response) => {
  * GET /api/users/stats
  * Get user statistics (Admin only)
  */
-router.get('/stats', requireAdmin, async (req: Request, res: Response) => {
+router.get('/stats', verifyToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const stats = await UserService.getUserStats();
 
@@ -415,10 +380,8 @@ router.get('/stats', requireAdmin, async (req: Request, res: Response) => {
  * Create new user with role-based authorization
  */
 router.post('/',
-  requireUserCreationAuth,
-  sanitizeInput(),
-  validateContentType(),
-  validateBody(createUserSchema),
+  verifyToken,
+  requireManagerOrAdmin,
   async (req: Request, res: Response) => {
     try {
       const { confirmPassword, ...userData }: CreateUserRequest & { confirmPassword: string } = req.body;
@@ -463,13 +426,127 @@ router.post('/',
 );
 
 /**
+ * GET /api/users/inactive
+ * Get inactive users (Admin/Manager only)
+ */
+router.get('/inactive', verifyToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
+  console.log('🔍 Route matched: /inactive - SUCCESS!');
+  try {
+    const inactiveDays = req.query.days ? parseInt(req.query.days as string) : 90;
+    const inactiveUsers = await UserService.getInactiveUsers(inactiveDays);
+
+    res.json({
+      success: true,
+      data: inactiveUsers,
+      message: `Found ${inactiveUsers.length} inactive users`
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching inactive users',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/users/check-dependencies
+ * Check user dependencies before deletion (Admin/Manager only)
+ */
+router.post('/check-dependencies', verifyToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
+  try {
+    const { userIds }: { userIds: number[] } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'userIds array is required'
+      });
+    }
+
+    const results = await Promise.all(
+      userIds.map(async (userId) => ({
+        userId,
+        ...(await UserService.checkUserDependencies(userId))
+      }))
+    );
+
+    res.json({
+      success: true,
+      data: results
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error checking user dependencies',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/users/cleanup-inactive
+ * Safely delete inactive users (Admin/Manager only)
+ */
+router.delete('/cleanup-inactive', verifyToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
+  try {
+    const { userIds }: { userIds: number[] } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'userIds array is required'
+      });
+    }
+
+    const result = await UserService.safeDeleteInactiveUsers(userIds, req.user?.userId!);
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Processed ${userIds.length} users: ${result.deleted.length} deleted, ${result.skipped.length} skipped, ${result.errors.length} errors`
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error during inactive users cleanup',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/users/export/csv
+ * Export users to CSV (Admin/Manager only)
+ */
+router.get('/export/csv', verifyToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
+  try {
+    const includeInactive = req.query.includeInactive === 'true';
+    const csvContent = await UserService.exportUsersToCSV(includeInactive);
+
+    const filename = `users_export_${new Date().toISOString().split('T')[0]}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvContent);
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error exporting users to CSV',
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/users/:id
  * Get specific user (self access or admin/manager)
  */
 router.get('/:id',
-  requireSelfOrManager,
-  validateId(),
+  verifyToken,
+  requireManagerOrAdmin,
   async (req: Request, res: Response) => {
+    console.log('🔍 Route matched: /:id with id =', req.params.id);
     try {
       const userId = parseIntId(req.params.id);
 
@@ -515,12 +592,8 @@ router.get('/:id',
  * Update user (self access or admin, with role change restrictions)
  */
 router.put('/:id',
-  requireSelfOrAdmin,
-  requireRoleChangeAuth,
-  validateId(),
-  sanitizeInput(),
-  validateContentType(),
-  validateBody(updateUserSchema),
+  verifyToken,
+  requireAdmin,
   async (req: Request, res: Response) => {
     try {
       const userData: UpdateUserRequest = req.body;
@@ -592,7 +665,7 @@ router.put('/:id',
  * DELETE /api/users/:id
  * Deactivate user (Admin only)
  */
-router.delete('/:id', requireAdmin, async (req: Request, res: Response) => {
+router.delete('/:id', verifyToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const userId = parseIntId(req.params.id);
     const deleted = await UserService.deleteUser(userId);
@@ -625,8 +698,7 @@ router.delete('/:id', requireAdmin, async (req: Request, res: Response) => {
  * Get all addresses for a user (CLIENT only)
  */
 router.get('/:id/addresses',
-  verifyTokenStandard,
-  validateId(),
+  verifyToken,
   async (req: Request, res: Response) => {
     try {
       const userId = parseIntId(req.params.id);
@@ -651,10 +723,7 @@ router.get('/:id/addresses',
  * Create new address for user (CLIENT only)
  */
 router.post('/:id/addresses',
-  verifyTokenStandard,
-  validateId(),
-  sanitizeInput(),
-  validateContentType(),
+  verifyToken,
   async (req: Request, res: Response) => {
     try {
       const userId = parseIntId(req.params.id);
@@ -694,9 +763,7 @@ router.post('/:id/addresses',
  * Update address (CLIENT only)
  */
 router.put('/:id/addresses/:addressId',
-  verifyTokenStandard,
-  sanitizeInput(),
-  validateContentType(),
+  verifyToken,
   async (req: Request, res: Response) => {
     try {
       const userId = parseIntId(req.params.id);
@@ -731,7 +798,7 @@ router.put('/:id/addresses/:addressId',
  * Delete address (CLIENT only)
  */
 router.delete('/:id/addresses/:addressId',
-  verifyTokenStandard,
+  verifyToken,
   async (req: Request, res: Response) => {
     try {
       const userId = parseIntId(req.params.id);
@@ -763,7 +830,7 @@ router.delete('/:id/addresses/:addressId',
  * Set address as default (CLIENT only)
  */
 router.post('/:id/addresses/:addressId/default',
-  verifyTokenStandard,
+  verifyToken,
   async (req: Request, res: Response) => {
     try {
       const userId = parseIntId(req.params.id);
@@ -790,7 +857,5 @@ router.post('/:id/addresses/:addressId/default',
   }
 );
 
-// Error handling middleware
-router.use(handleValidationErrors());
 
 export default router;

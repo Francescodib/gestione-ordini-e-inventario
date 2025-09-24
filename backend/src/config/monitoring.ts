@@ -299,7 +299,7 @@ export function createCustomMetrics(prometheusClient: typeof client) {
     usersTotal: new prometheusClient.Gauge({
       name: `${prefix}users_total`,
       help: 'Total number of users',
-      labelNames: ['role', 'status'] // ADMIN/USER, active/inactive
+      labelNames: ['role', 'status'] // ADMIN/CLIENT, active/inactive
     }),
     
     productsTotal: new prometheusClient.Gauge({

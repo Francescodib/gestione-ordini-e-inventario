@@ -145,7 +145,7 @@ const OrderCreatePage: React.FC = () => {
 
       if (usersResponse.success) {
         // Filter only CLIENT users for order creation
-        const clientUsers = usersResponse.data.filter(user => user.role === 'CLIENT');
+        const clientUsers = usersResponse.data.filter(user => user.role === 'CLIENT' && user.isActive);
         setUsers(clientUsers);
       }
     } catch (error: any) {

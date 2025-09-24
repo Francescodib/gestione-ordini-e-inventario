@@ -43,6 +43,7 @@ export interface Category {
   slug: string;
   parentId?: string;
   isActive: boolean;
+  parent?: Category;
   children?: Category[];
   products?: Product[];
   createdAt: string;
@@ -296,6 +297,30 @@ export const authService = {
 
   async createUser(userData: CreateUserRequest): Promise<ApiResponse<User>> {
     const response = await api.post('/users', userData);
+    return response.data;
+  },
+
+  async getInactiveUsers(inactiveDays?: number): Promise<ApiResponse<User[]>> {
+    const params = inactiveDays ? { days: inactiveDays } : {};
+    const response = await api.get('/users/inactive', { params });
+    return response.data;
+  },
+
+  async checkUserDependencies(userIds: number[]): Promise<ApiResponse<any>> {
+    const response = await api.post('/users/check-dependencies', { userIds });
+    return response.data;
+  },
+
+  async cleanupInactiveUsers(userIds: number[]): Promise<ApiResponse<any>> {
+    const response = await api.delete('/users/cleanup-inactive', { data: { userIds } });
+    return response.data;
+  },
+
+  async exportUsersCSV(includeInactive: boolean = false): Promise<Blob> {
+    const response = await api.get('/users/export/csv', {
+      params: { includeInactive },
+      responseType: 'blob'
+    });
     return response.data;
   }
 };

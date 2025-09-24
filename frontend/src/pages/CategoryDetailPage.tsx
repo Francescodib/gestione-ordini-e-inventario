@@ -278,7 +278,12 @@ const CategoryDetailPage: React.FC = () => {
                   {category.parentId && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Categoria Padre</label>
-                      <p className="mt-1 text-sm text-gray-900">ID: {category.parentId}</p>
+                      <Link
+                        to={`/categories/${category.parentId}`}
+                        className="mt-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        {category.parent?.name || `ID: ${category.parentId}`}
+                      </Link>
                     </div>
                   )}
                 </div>

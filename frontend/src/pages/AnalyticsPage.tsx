@@ -112,16 +112,16 @@ const AnalyticsPage: React.FC = () => {
 
       // Process user stats
       if (userStatsResponse.status === 'fulfilled' && userStatsResponse.value.success) {
-        const userStats = userStatsResponse.value.data;
+        const userStats = userStatsResponse.value.data as any;
         console.log('User stats from backend:', userStats);
         analyticsData.users = {
           total: userStats.totalUsers || 0,
           active: userStats.activeUsers || 0,
-          newThisMonth: 0, // This field needs to be implemented in backend
+          newThisMonth: userStats.newThisMonth || 0,
           byRole: {
             'ADMIN': userStats.adminUsers || 0,
             'MANAGER': userStats.managerUsers || 0,
-            'CLIENT': userStats.regularUsers || 0
+            'CLIENT': userStats.clientUsers || 0
           }
         };
       }

@@ -365,7 +365,7 @@ export class NotificationService {
     totalActiveSockets: number;
     connectionsByRole: Record<string, number>;
   } {
-    const connectionsByRole: Record<string, number> = { USER: 0, MANAGER: 0, ADMIN: 0 };
+    const connectionsByRole: Record<string, number> = { CLIENT: 0, MANAGER: 0, ADMIN: 0 };
     let totalSockets = 0;
 
     this.connectedUsers.forEach(sockets => {

@@ -141,12 +141,7 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
           onError={(e) => {
             e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQgMTZMOC41ODYgMTEuNDE0QzkuMzY3IDEwLjYzMyAxMC42MzMgMTAuNjMzIDExLjQxNCAxMS40MTRMMTYgMTZNMTQgMTRMMTUuNTg2IDEyLjQxNEMxNi4zNjcgMTEuNjMzIDE3LjYzMyAxMS42MzMgMTguNDE0IDEyLjQxNEwyMCAxNE0xOCA4SDEzTTYgMjBIMThDMTkuMTA0NiAyMCAyMCAxOS4xMDQ2IDIwIDE4VjZDMjAgNC44OTU0MyAxOS4xMDQ2IDQgMTggNEg2QzQuODk1NDMgNCA0IDQuODk1NDMgNCA2VjE4QzQgMTkuMTA0NiA0Ljg5NTQzIDIwIDYgMjBaIiBzdHJva2U9IiNEMUQ1REIiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo=';
           }}
-        />
-        {mainImage.isPrimary && (
-          <div className="absolute top-1 left-1 bg-green-500 text-white text-xs px-1 py-0.5 rounded">
-            P
-          </div>
-        )}
+        />      
       </div>
     );
   }

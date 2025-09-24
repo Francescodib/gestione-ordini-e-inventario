@@ -11,7 +11,7 @@ export interface NotificationPayload {
   message: string;
   data?: any;
   userId?: number;
-  userRole?: 'USER' | 'MANAGER' | 'ADMIN';
+  userRole?: 'CLIENT' | 'MANAGER' | 'ADMIN';
   timestamp: Date | string;
   orderId?: number;
 }

@@ -736,9 +736,6 @@ const UserDetailPage: React.FC = () => {
               <Button variant="secondary" size="sm" onClick={() => setShowRoleModal(true)}>
                 Cambia Ruolo
               </Button>
-              <Button variant="danger" size="sm" onClick={handleDeleteUser}>
-                Elimina Account
-              </Button>
             </div>
           </div>
         </Card>
