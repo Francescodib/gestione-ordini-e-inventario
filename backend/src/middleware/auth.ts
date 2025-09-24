@@ -20,28 +20,34 @@ dotenv.config();
  * @param next - Funzione per passare al middleware successivo
  */
 export function verifyToken(req: Request, res: Response, next: NextFunction) {
+  console.log('verifyToken middleware called');
   // Estrazione del token dall'header Authorization (formato: "Bearer <token>")
   const token = req.headers.authorization?.split(" ")[1];
-  
+  console.log('Token found:', !!token);
+
   // Controllo presenza del token
   if (!token) {
-    return res.status(401).json({ 
+    console.log('No token found');
+    return res.status(401).json({
       message: "Protected route, token required.",
-      error: "UNAUTHORIZED" 
+      error: "UNAUTHORIZED"
     });
   }
 
   try {
     // Verifica e decodifica del token JWT
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
+    console.log('Token decoded successfully:', decoded);
     // Aggiunta dei dati utente alla richiesta per uso nei controller
     req.user = decoded;
+    console.log('About to call next()');
     next();
   } catch (error) {
     // Gestione errori di verifica (token scaduto, malformato, ecc.)
-    return res.status(401).json({ 
+    console.log('Token verification error:', error);
+    return res.status(401).json({
       message: "Invalid or expired token",
-      error: "UNAUTHORIZED" 
+      error: "UNAUTHORIZED"
     });
   }
 }
@@ -208,4 +214,41 @@ export function requireUserCreation(req: Request, res: Response, next: NextFunct
   }
 
   next();
+}
+
+/**
+ * Middleware per verificare che l'utente possa modificare il profilo specificato
+ * Permette agli utenti di modificare il proprio profilo o agli admin di modificare qualsiasi profilo
+ */
+export function requireSelfOrAdmin(req: Request, res: Response, next: NextFunction) {
+  console.log('requireSelfOrAdmin middleware called');
+  console.log('req.user:', req.user);
+  console.log('req.params:', req.params);
+
+  if (!req.user) {
+    console.log('No user in request');
+    return res.status(401).json({
+      message: "Authentication required",
+      error: "UNAUTHORIZED"
+    });
+  }
+
+  const targetUserId = parseInt(req.params.id);
+  const currentUserId = req.user.userId;
+
+  console.log('targetUserId:', targetUserId);
+  console.log('currentUserId:', currentUserId);
+  console.log('user role:', req.user.role);
+
+  // Permetti se è admin o se sta modificare il proprio profilo
+  if (req.user.role === 'ADMIN' || currentUserId === targetUserId) {
+    console.log('Access granted');
+    return next();
+  }
+
+  console.log('Access denied');
+  return res.status(403).json({
+    message: "You can only modify your own profile",
+    error: "FORBIDDEN"
+  });
 }

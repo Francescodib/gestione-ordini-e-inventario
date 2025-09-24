@@ -50,7 +50,12 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
   };
 
   useEffect(() => {
-    loadCurrentAvatar();
+    // Debounce avatar loading to avoid 429 errors
+    const timeoutId = setTimeout(() => {
+      loadCurrentAvatar();
+    }, 200);
+
+    return () => clearTimeout(timeoutId);
   }, [userId]);
 
   useEffect(() => {
@@ -226,7 +231,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
                   onClick={() => setShowUploader(true)}
                   disabled={uploading || deleting}
                 >
-                  {avatar ? 'Change Avatar' : 'Upload Avatar'}
+                  {avatar ? 'Cambia Avatar' : 'Upload Avatar'}
                 </Button>
                 
                 {avatar && allowDelete && (
@@ -237,7 +242,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
                     loading={deleting}
                     disabled={uploading}
                   >
-                    Remove
+                    Rimuovi
                   </Button>
                 )}
               </div>

@@ -7,7 +7,7 @@ import express, { Request, Response } from 'express';
 import { UserService, CreateUserRequest, UpdateUserRequest, LoginRequest, UserResponse } from '../services/userService';
 import { AddressService, CreateAddressRequest, UpdateAddressRequest } from '../services/addressService';
 import { AuthService } from '../services/authService';
-import { verifyToken, requireAdmin, requireManagerOrAdmin } from '../middleware/auth';
+import { verifyToken, requireAdmin, requireManagerOrAdmin, requireSelfOrAdmin } from '../middleware/auth';
 import { logger } from '../config/logger';
 
 const router = express.Router();
@@ -593,13 +593,20 @@ router.get('/:id',
  */
 router.put('/:id',
   verifyToken,
-  requireAdmin,
+  requireSelfOrAdmin,
   async (req: Request, res: Response) => {
+    console.log('PUT /:id route reached');
+    console.log('req.user:', req.user);
+    console.log('req.params:', req.params);
+    console.log('req.body:', req.body);
     try {
-      const userData: UpdateUserRequest = req.body;
+      let userData: UpdateUserRequest = req.body;
+
+      console.log('1. userData before processing:', userData);
 
       // Check for conflicts
       if (userData.email || userData.username) {
+        console.log('2. Checking conflicts...');
         const conflicts = await UserService.checkUserExists(
           userData.email,
           userData.username,
@@ -607,6 +614,7 @@ router.put('/:id',
         );
 
         if (conflicts.emailExists) {
+          console.log('3. Email conflict found');
           return res.status(400).json({
             success: false,
             message: 'Email already exists'
@@ -614,6 +622,7 @@ router.put('/:id',
         }
 
         if (conflicts.usernameExists) {
+          console.log('3. Username conflict found');
           return res.status(400).json({
             success: false,
             message: 'Username already exists'
@@ -621,7 +630,30 @@ router.put('/:id',
         }
       }
 
+      console.log('4. Parsing userId...');
       const userId = parseIntId(req.params.id);
+      const currentUserId = req.user.userId;
+
+      console.log('5. userId:', userId, 'currentUserId:', currentUserId);
+
+      // Se non è admin e sta modificando il proprio profilo, rimuovi campi sensibili
+      if (req.user.role !== 'ADMIN' && currentUserId === userId) {
+        console.log('6. Filtering fields for non-admin user...');
+        // Gli utenti non-admin possono modificare solo alcuni campi del proprio profilo
+        const allowedFields = ['firstName', 'lastName', 'phone', 'currentPassword', 'newPassword'];
+        const filteredUserData: any = {};
+
+        for (const key of allowedFields) {
+          if (userData.hasOwnProperty(key)) {
+            filteredUserData[key] = (userData as any)[key];
+          }
+        }
+
+        userData = filteredUserData as UpdateUserRequest;
+        console.log('7. userData after filtering:', userData);
+      }
+
+      console.log('8. Calling UserService.updateUser...');
       const updatedUser = await UserService.updateUser(userId, userData);
 
       if (!updatedUser) {

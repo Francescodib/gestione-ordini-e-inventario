@@ -15,6 +15,7 @@ interface NavItem {
   adminOnly?: boolean;
   managerOrAdminOnly?: boolean;
   clientRestricted?: boolean; // true = NOT visible to clients
+  clientOnly?: boolean; // true = ONLY visible to clients
 }
 
 const HomeIcon = ({ className }: { className?: string }) => (
@@ -60,6 +61,12 @@ const Cog8ToothIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const UserIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+  </svg>
+);
+
 const MagnifyingGlassIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -80,10 +87,11 @@ const XMarkIcon = ({ className }: { className?: string }) => (
 );
 
 const navigation: NavItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'Prodotti', href: '/products', icon: CubeIcon },
+  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, clientRestricted: true },
+  { name: 'Prodotti', href: '/products', icon: CubeIcon, clientRestricted: true },
   { name: 'Categorie', href: '/categories', icon: ShoppingBagIcon, clientRestricted: true },
-  { name: 'Ordini', href: '/orders', icon: ClipboardDocumentListIcon },
+  { name: 'Ordini', href: '/orders', icon: ClipboardDocumentListIcon, clientRestricted: true },
+  { name: 'Il mio Profilo', href: '/profile', icon: UserIcon, clientOnly: true },
   { name: 'Utenti', href: '/users', icon: UsersIcon, adminOnly: true },
   { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, managerOrAdminOnly: true },
   { name: 'Sistema', href: '/system', icon: Cog8ToothIcon, adminOnly: true },
@@ -108,6 +116,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (item.adminOnly && !isAdmin()) return false;
     if (item.managerOrAdminOnly && !canManageOrders()) return false;
     if (item.clientRestricted && isClient()) return false;
+    if (item.clientOnly && !isClient()) return false;
     return true;
   });
 
@@ -267,28 +276,32 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16">
               <div className="flex items-center flex-1">
-                {/* Search bar */}
-                <div className="max-w-lg w-full lg:max-w-xs">
-                  <form onSubmit={handleSearch}>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                {/* Search bar - hidden for clients */}
+                {!isClient() && (
+                  <div className="max-w-lg w-full lg:max-w-xs">
+                    <form onSubmit={handleSearch}>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          placeholder="Cerca prodotti, ordini..."
+                          type="search"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                        />
                       </div>
-                      <input
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        placeholder="Cerca prodotti, ordini..."
-                        type="search"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
-                  </form>
-                </div>
+                    </form>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center space-x-4">
-                {/* Notifications */}
-                <NotificationCenter token={user ? localStorage.getItem('token') || undefined : undefined} />
+                {/* Notifications - hidden for CLIENT users */}
+                {!isClient() && (
+                  <NotificationCenter token={user ? localStorage.getItem('token') || undefined : undefined} />
+                )}
 
                 {/* User info - mobile */}
                 <div className="md:hidden">

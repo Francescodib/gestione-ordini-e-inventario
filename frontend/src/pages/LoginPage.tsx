@@ -142,8 +142,12 @@ const LoginPage: React.FC = () => {
               </Button>
             </div>
             <div className="flex justify-center flex-col bg-gray-50 rounded-md p-2 shadow-md">
-              <p className="text-xs text-center text-gray-500 mb-2">Utente demo: <span className="font-mono">demo@demo.com</span></p>
+              <p className="text-xs text-center text-gray-500 mb-2">Admin demo: <span className="font-mono">demo@demo.com</span></p>
               <p className="text-xs text-center text-gray-500">Password: <span className="font-mono">Demo123!</span></p>
+            </div>
+            <div className="flex justify-center flex-col bg-gray-50 rounded-md p-2 shadow-md">
+              <p className="text-xs text-center text-gray-500 mb-2">Cliente demo: <span className="font-mono">cliente@demo.it</span></p>
+              <p className="text-xs text-center text-gray-500">Password: <span className="font-mono">Cliente123!</span></p>
             </div>
           </form>
         </div>

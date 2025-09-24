@@ -23,6 +23,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import CategoryDetailPage from './pages/CategoryDetailPage';
 import CategoryCreatePage from './pages/CategoryCreatePage';
 import CategoryEditPage from './pages/CategoryEditPage';
+import ClientProfilePage from './pages/ClientProfilePage';
 
 import './App.css';
 
@@ -36,18 +37,26 @@ function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route 
-              path="/dashboard" 
+            <Route
+              path="/dashboard"
               element={
                 <ProtectedRoute>
                   <DashboardPage />
                 </ProtectedRoute>
-              } 
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute requiredRoles={['CLIENT']}>
+                  <ClientProfilePage />
+                </ProtectedRoute>
+              }
             />
             <Route
               path="/products"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
                   <ProductsPage />
                 </ProtectedRoute>
               }
@@ -63,7 +72,7 @@ function App() {
             <Route
               path="/products/:id"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
                   <ProductDetailPage />
                 </ProtectedRoute>
               }
@@ -79,7 +88,7 @@ function App() {
             <Route
               path="/orders"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
                   <OrdersPage />
                 </ProtectedRoute>
               }
@@ -95,7 +104,7 @@ function App() {
             <Route
               path="/orders/:id"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
                   <OrderDetailPage />
                 </ProtectedRoute>
               }
@@ -108,21 +117,21 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route 
-              path="/categories" 
+            <Route
+              path="/categories"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
                   <CategoriesPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-             <Route 
-              path="/categories/:id" 
+            <Route
+              path="/categories/:id"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
                   <CategoryDetailPage />
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route 
               path="/categories/new" 
@@ -140,13 +149,13 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/search" 
+            <Route
+              path="/search"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['ADMIN', 'MANAGER']}>
                   <SearchPage />
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route
               path="/users"
