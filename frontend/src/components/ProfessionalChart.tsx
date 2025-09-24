@@ -26,7 +26,6 @@ interface ProfessionalChartProps {
   type: 'bar' | 'pie' | 'line';
   title?: string;
   height?: number;
-  showValues?: boolean;
 }
 
 const ProfessionalChart: React.FC<ProfessionalChartProps> = ({

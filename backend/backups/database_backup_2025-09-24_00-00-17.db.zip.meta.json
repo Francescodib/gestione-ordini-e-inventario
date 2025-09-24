@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-09-24T21:07:50.337Z",
+  "timestamp": "2025-09-24T22:00:17.902Z",
   "tables": [
     "users",
     "categories",
@@ -20,8 +20,8 @@
     "userAvatars": 3,
     "uploadedFiles": 0
   },
-  "checksum": "665d4fcef29720b6a2bf1876a802522f05f3fb1bfc4e276543b54b69325184a5",
-  "backupPath": "/Users/francescodibiase/Documents/Projects/MasterWD/progetti/5-NodeJS-Express/progetto/gestione-ordini-e-inventario/backend/backups/database_backup_2025-09-24_23-07-50.db.zip",
+  "checksum": "21a8996daba49806e078908a8a096e5fed7ea7e9fabb57b8c1fb6b7b008c6703",
+  "backupPath": "/Users/francescodibiase/Documents/Projects/MasterWD/progetti/5-NodeJS-Express/progetto/gestione-ordini-e-inventario/backend/backups/database_backup_2025-09-24_00-00-17.db.zip",
   "version": "1.0",
   "type": "database"
 }

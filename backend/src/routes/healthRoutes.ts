@@ -47,35 +47,10 @@ router.get('/', async (req: Request, res: Response) => {
  * GET /status
  * Detailed system status (alias for /health)
  */
-router.get('/status', async (req: Request, res: Response) => {
+router.get('/status', (req: Request, res: Response) => {
   // Forward to main health endpoint
-  try {
-    const isDbHealthy = await checkDatabaseHealth();
-
-    const healthStatus = {
-      status: isDbHealthy ? 'OK' : 'ERROR',
-      database: isDbHealthy ? 'connected' : 'disconnected',
-      timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version || '1.0.0',
-      environment: process.env.NODE_ENV || 'development'
-    };
-
-    if (!isDbHealthy) {
-      logger.warn('Status check failed - database disconnected');
-      return res.status(503).json(healthStatus);
-    }
-
-    res.json(healthStatus);
-  } catch (error: any) {
-    logger.error('Status check error:', error);
-
-    res.status(503).json({
-      status: 'ERROR',
-      database: 'disconnected',
-      timestamp: new Date().toISOString(),
-      message: error.message
-    });
-  }
+  req.url = '/';
+  router.handle(req, res);
 });
 
 export default router;

@@ -407,12 +407,12 @@ export class AlertService {
   private async sendNotification(alert: Alert): Promise<void> {
     try {
       // Email notification
-      if (this.config.notifications?.email) {
+      if ((this.config as any).notifications?.email) {
         await this.sendEmailNotification(alert);
       }
       
       // Webhook notification
-      if (this.config.notifications?.webhook) {
+      if ((this.config as any).notifications?.webhook) {
         await this.sendWebhookNotification(alert);
       }
       
@@ -437,7 +437,7 @@ export class AlertService {
   private async sendEmailNotification(alert: Alert): Promise<void> {
     // TODO: Implement actual email sending
     logger.info('Email notification would be sent', {
-      to: this.config.notifications?.email,
+      to: (this.config as any).notifications?.email,
       subject: `[${alert.severity.toUpperCase()}] ${alert.title}`,
       alert: {
         id: alert.id,
@@ -454,7 +454,7 @@ export class AlertService {
   private async sendWebhookNotification(alert: Alert): Promise<void> {
     // TODO: Implement webhook sending
     logger.info('Webhook notification would be sent', {
-      url: this.config.notifications?.webhook,
+      url: (this.config as any).notifications?.webhook,
       alert: {
         id: alert.id,
         severity: alert.severity,

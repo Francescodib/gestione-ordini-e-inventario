@@ -179,7 +179,7 @@ router.get('/',
       // For non-admin users, only show their own orders
       let finalUserId = userId as string;
       if (req.user?.role !== 'ADMIN' && req.user?.role !== 'MANAGER') {
-        finalUserId = req.user?.userId!;
+        finalUserId = req.user?.userId?.toString() || 'unknown';
       }
 
       const options: OrderSearchOptions = {
@@ -632,7 +632,7 @@ router.post('/bulk/update-status',
       const failed = results.filter(r => r.status === 'rejected').length;
 
       if (userId) {
-        logUtils.logUserAction(userId, 'bulk_order_status_update', {
+        logUtils.logUserAction(userId.toString(), 'bulk_order_status_update', {
           totalOrders: orderIds.length,
           successful,
           failed,
@@ -678,7 +678,7 @@ router.delete('/:id',
       logger.info('DELETE order request received', { orderId: req.params.id });
 
       const orderId = parseIntId(req.params.id);
-      const adminUserId = req.user.userId;
+      const adminUserId = req.user?.userId;
 
       logger.info('Starting order deletion process', { orderId, adminUserId });
       logUtils.logDbOperation('DELETE', 'orders', orderId);

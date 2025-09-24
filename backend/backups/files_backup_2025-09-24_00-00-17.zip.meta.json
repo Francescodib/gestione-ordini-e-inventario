@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-09-24T22:00:17.904Z",
+  "directories": [
+    "uploads",
+    "logs",
+    "config"
+  ],
+  "fileCount": 76,
+  "totalSize": 28277439,
+  "exclusions": [
+    "*.log",
+    "*.tmp",
+    "node_modules",
+    ".git",
+    "coverage",
+    "dist"
+  ],
+  "checksum": "a454df9570101385103835d2225761e223147dd8327a09de6a64f299532e276a",
+  "backupPath": "/Users/francescodibiase/Documents/Projects/MasterWD/progetti/5-NodeJS-Express/progetto/gestione-ordini-e-inventario/backend/backups/files_backup_2025-09-24_00-00-17.zip",
+  "version": "1.0",
+  "type": "files"
+}

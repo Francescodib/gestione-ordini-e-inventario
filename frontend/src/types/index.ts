@@ -1,6 +1,7 @@
 // Re-export all types from other modules
 export * from './auth';
 export * from './order';
+export * from './orderAddress';
 
 // Common API response types
 export interface BaseStats {

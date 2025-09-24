@@ -5,6 +5,7 @@
 
 import jwt from 'jsonwebtoken';
 import { User } from '../types/auth';
+import { User as UserModel, UserAttributes } from '../models/User';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -49,7 +50,7 @@ export class AuthService {
    * @param user - Oggetto utente per cui generare il token
    * @returns Token JWT firmato
    */
-  static generateToken(user: User): string {
+  static generateToken(user: UserAttributes): string {
     // Creazione del payload del token con le informazioni essenziali
     const payload: TokenPayload = {
       userId: user.id,
@@ -85,7 +86,7 @@ export class AuthService {
    * @param user - Oggetto utente completo
    * @returns Risposta di autenticazione con token e dati utente
    */
-  static createAuthResponse(user: User): AuthResponse {
+  static createAuthResponse(user: UserAttributes): AuthResponse {
     const token = this.generateToken(user);
     // Rimozione della password dai dati utente per la risposta
     const { password, ...userWithoutPassword } = user;

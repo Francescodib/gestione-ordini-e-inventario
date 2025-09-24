@@ -109,7 +109,7 @@ router.get('/',
         sortBy: sortBy as any,
         sortOrder: sortOrder as any,
         filters,
-        userId: req.user?.userId,
+        userId: req.user?.userId?.toString(),
         userRole: req.user?.role
       };
 
@@ -117,7 +117,7 @@ router.get('/',
 
       // Log search activity
       if (req.user?.userId) {
-        logUtils.logUserAction(req.user.userId, 'global_search', {
+        logUtils.logUserAction(req.user.userId.toString(), 'global_search', {
           query: query as string,
           entities,
           totalResults: results.total,
@@ -433,7 +433,7 @@ router.get('/orders',
         sortBy: sortBy as 'relevance' | 'date' | 'name' | 'price',
         sortOrder: sortOrder as any,
         filters,
-        userId: req.user?.role === 'ADMIN' ? undefined : req.user?.userId
+        userId: req.user?.role === 'ADMIN' ? undefined : req.user?.userId?.toString()
       };
 
       const result = await SearchService.searchOrders(searchOptions);

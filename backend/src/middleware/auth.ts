@@ -6,6 +6,27 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import { UserRole } from '../models';
+
+// Define the AuthenticatedUser interface
+export interface AuthenticatedUser {
+  id: number;       // Add id property for compatibility
+  userId: number;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  iat: number;
+  exp: number;
+}
+
+// Extend the Express Request interface
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthenticatedUser;
+    }
+  }
+}
 
 dotenv.config();
 
@@ -20,14 +41,9 @@ dotenv.config();
  * @param next - Funzione per passare al middleware successivo
  */
 export function verifyToken(req: Request, res: Response, next: NextFunction) {
-  console.log('verifyToken middleware called');
-  // Estrazione del token dall'header Authorization (formato: "Bearer <token>")
   const token = req.headers.authorization?.split(" ")[1];
-  console.log('Token found:', !!token);
 
-  // Controllo presenza del token
   if (!token) {
-    console.log('No token found');
     return res.status(401).json({
       message: "Protected route, token required.",
       error: "UNAUTHORIZED"
@@ -35,16 +51,10 @@ export function verifyToken(req: Request, res: Response, next: NextFunction) {
   }
 
   try {
-    // Verifica e decodifica del token JWT
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
-    console.log('Token decoded successfully:', decoded);
-    // Aggiunta dei dati utente alla richiesta per uso nei controller
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as AuthenticatedUser;
     req.user = decoded;
-    console.log('About to call next()');
     next();
   } catch (error) {
-    // Gestione errori di verifica (token scaduto, malformato, ecc.)
-    console.log('Token verification error:', error);
     return res.status(401).json({
       message: "Invalid or expired token",
       error: "UNAUTHORIZED"
@@ -124,7 +134,7 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction) {
   // Se presente un token, tenta di verificarlo
   if (token) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as AuthenticatedUser;
       req.user = decoded;
     } catch (error) {
       // Ignora token non validi nell'autenticazione opzionale
@@ -221,12 +231,7 @@ export function requireUserCreation(req: Request, res: Response, next: NextFunct
  * Permette agli utenti di modificare il proprio profilo o agli admin di modificare qualsiasi profilo
  */
 export function requireSelfOrAdmin(req: Request, res: Response, next: NextFunction) {
-  console.log('requireSelfOrAdmin middleware called');
-  console.log('req.user:', req.user);
-  console.log('req.params:', req.params);
-
   if (!req.user) {
-    console.log('No user in request');
     return res.status(401).json({
       message: "Authentication required",
       error: "UNAUTHORIZED"
@@ -236,17 +241,10 @@ export function requireSelfOrAdmin(req: Request, res: Response, next: NextFuncti
   const targetUserId = parseInt(req.params.id);
   const currentUserId = req.user.userId;
 
-  console.log('targetUserId:', targetUserId);
-  console.log('currentUserId:', currentUserId);
-  console.log('user role:', req.user.role);
-
-  // Permetti se è admin o se sta modificare il proprio profilo
   if (req.user.role === 'ADMIN' || currentUserId === targetUserId) {
-    console.log('Access granted');
     return next();
   }
 
-  console.log('Access denied');
   return res.status(403).json({
     message: "You can only modify your own profile",
     error: "FORBIDDEN"

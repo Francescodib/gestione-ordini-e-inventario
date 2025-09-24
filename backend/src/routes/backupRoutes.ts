@@ -172,7 +172,7 @@ router.post('/database',
           backupPath: result.backupPath
         });
         
-        logUtils.logUserAction(req.user?.id, 'Created manual database backup');
+        logUtils.logUserAction(req.user?.id?.toString() || 'unknown', 'Created manual database backup');
         
         res.status(201).json({
           success: true,
@@ -233,7 +233,7 @@ router.post('/files',
           backupPath: result.backupPath
         });
         
-        logUtils.logUserAction(req.user?.id, 'Created manual files backup');
+        logUtils.logUserAction(req.user?.id?.toString() || 'unknown', 'Created manual files backup');
         
         res.status(201).json({
           success: true,
@@ -365,7 +365,7 @@ router.post('/restore/database',
           backupPath
         });
         
-        logUtils.logUserAction(req.user?.id, `Restored database from backup: ${backupPath}`);
+        logUtils.logUserAction(req.user?.id?.toString() || 'unknown', `Restored database from backup: ${backupPath}`);
         
         res.json({
           success: true,
@@ -435,7 +435,7 @@ router.post('/restore/files',
           extractedFiles: result.extractedFiles
         });
         
-        logUtils.logUserAction(req.user?.id, `Restored files from backup: ${backupPath}`);
+        logUtils.logUserAction(req.user?.id?.toString() || 'unknown', `Restored files from backup: ${backupPath}`);
         
         res.json({
           success: true,
@@ -558,7 +558,7 @@ router.post('/jobs/:jobName/trigger',
       const result = await backupScheduler.triggerJob(jobName);
       
       if (result.success) {
-        logUtils.logUserAction(req.user?.id, `Manually triggered backup job: ${jobName}`);
+        logUtils.logUserAction(req.user?.id?.toString() || 'unknown', `Manually triggered backup job: ${jobName}`);
         
         res.json({
           success: true,
@@ -619,7 +619,7 @@ router.post('/cleanup',
         totalErrors: totalErrors.length
       });
       
-      logUtils.logUserAction(req.user?.id, `Cleanup completed: deleted ${totalDeleted} old backups`);
+      logUtils.logUserAction(req.user?.id?.toString() || 'unknown', `Cleanup completed: deleted ${totalDeleted} old backups`);
       
       res.json({
         success: true,
@@ -719,7 +719,7 @@ router.get('/stats',
           files: {
             enabled: backupConfig.files.enabled,
             compression: backupConfig.files.compression,
-            retention: backupConfig.files.retention
+            // retention: files backup doesn't have retention config
           },
           storage: {
             local: {

@@ -29,6 +29,7 @@ export interface GlobalSearchOptions {
   };
   userId?: string; // For permission-based filtering
   userRole?: string;
+  includeRelated?: boolean;
 }
 
 export interface SearchResultItem {

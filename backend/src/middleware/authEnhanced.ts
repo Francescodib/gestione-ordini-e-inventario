@@ -9,6 +9,7 @@ import { UserRole } from '../models';
 import { AuditService } from '../services/auditService';
 
 export interface AuthenticatedUser {
+  id: number;       // Add id property for compatibility
   userId: number;
   email: string;
   role: UserRole;

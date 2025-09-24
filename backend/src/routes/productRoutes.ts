@@ -638,7 +638,7 @@ router.post('/bulk/update-status',
       const successful = results.filter(r => r.status === 'fulfilled').length;
       const failed = results.filter(r => r.status === 'rejected').length;
 
-      logUtils.logUserAction(userId!, 'bulk_status_update', {
+      logUtils.logUserAction(userId!.toString(), 'bulk_status_update', {
         totalProducts: productIds.length,
         successful,
         failed,

@@ -76,13 +76,6 @@ export function validate(
         value: detail.context?.value
       }));
 
-      // Temporary logging to debug validation issues
-      console.error('❌ Validation Error Details:', {
-        target,
-        dataToValidate,
-        errors: validationErrors,
-        originalError: error.message
-      });
 
       return res.status(400).json({
         success: false,
@@ -292,7 +285,7 @@ export function validateRateLimit() {
 
     // Log if approaching rate limit
     if (remaining < limit * 0.1) {
-      console.warn(`Rate limit warning for IP ${req.ip}: ${remaining}/${limit} requests remaining`);
+      // Rate limit warning would be handled by proper logging system
     }
 
     next();

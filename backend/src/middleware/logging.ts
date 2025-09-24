@@ -42,7 +42,7 @@ export function requestLoggingMiddleware() {
     const userRole = req.user?.role;
     
     // Store user info for later use
-    req.userId = userId;
+    req.userId = userId?.toString();
     req.userRole = userRole;
     
     // Log request start

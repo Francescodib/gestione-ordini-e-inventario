@@ -5,6 +5,7 @@
 
 import { AuditLog, AuditAction, ResourceType } from '../models';
 import { Transaction } from 'sequelize';
+import { logger } from '../config/logger';
 
 export interface AuditLogRequest {
   userId: number;
@@ -49,7 +50,7 @@ export class AuditService {
         createdBy: auditData.userId
       }, options);
     } catch (error) {
-      console.error('Failed to log audit action:', error);
+      logger.error('Failed to log audit action:', error);
       throw error;
     }
   }
@@ -61,7 +62,7 @@ export class AuditService {
     try {
       // For security events without a specific user, we create a system audit log
       // You might want to create a separate security_events table for this
-      console.warn('Security Event:', {
+      logger.warn('Security Event:', {
         timestamp: new Date().toISOString(),
         action: eventData.action,
         userId: eventData.userId,
@@ -70,7 +71,7 @@ export class AuditService {
         details: eventData.details
       });
     } catch (error) {
-      console.error('Failed to log security event:', error);
+      logger.error('Failed to log security event:', error);
     }
   }
 
@@ -107,7 +108,7 @@ export class AuditService {
         total: count
       };
     } catch (error) {
-      console.error('Failed to get user audit logs:', error);
+      logger.error('Failed to get user audit logs:', error);
       throw error;
     }
   }
@@ -141,7 +142,7 @@ export class AuditService {
         total: count
       };
     } catch (error) {
-      console.error('Failed to get audit logs by user:', error);
+      logger.error('Failed to get audit logs by user:', error);
       throw error;
     }
   }
@@ -199,7 +200,7 @@ export class AuditService {
         total: count
       };
     } catch (error) {
-      console.error('Failed to get all audit logs:', error);
+      logger.error('Failed to get all audit logs:', error);
       throw error;
     }
   }
@@ -220,10 +221,10 @@ export class AuditService {
         }
       });
 
-      console.log(`Cleaned up ${deletedCount} audit logs older than ${daysToKeep} days`);
+      logger.info(`Cleaned up ${deletedCount} audit logs older than ${daysToKeep} days`);
       return deletedCount;
     } catch (error) {
-      console.error('Failed to cleanup old audit logs:', error);
+      logger.error('Failed to cleanup old audit logs:', error);
       throw error;
     }
   }

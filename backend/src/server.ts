@@ -83,7 +83,7 @@ const PORT = process.env.PORT || 3000;
 const initializeApplication = async () => {
   try {
     // 1. Setup required directories first
-    console.log('🚀 Initializing application...');
+    logger.info('🚀 Initializing application...');
     await setupRequiredDirectories();
 
     // 2. Connect to database
@@ -101,7 +101,7 @@ const initializeApplication = async () => {
     logger.info('✅ Application initialization completed successfully');
   } catch (error) {
     logger.error('❌ Application initialization failed:', error);
-    console.error('Initialization error details:', error);
+    logger.error('Initialization error details:', error);
     process.exit(1);
   }
 };
@@ -146,7 +146,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Enhanced JSON parsing error handler
 app.use((error: any, req: any, res: Response, next: NextFunction) => {
-  if (error instanceof SyntaxError && 'body' in error && error.status === 400) {
+  if (error instanceof SyntaxError && 'body' in error && (error as any).status === 400) {
     logger.error('JSON parsing error', {
       message: error.message,
       url: req.url,
@@ -186,7 +186,7 @@ app.get("/health", async (_req, res) => {
       environment: process.env.NODE_ENV || 'development'
     });
   } catch (error) {
-    console.error('Health check error:', error);
+    logger.error('Health check error:', error);
     res.status(503).json({
       status: 'ERROR',
       timestamp: new Date().toISOString(),

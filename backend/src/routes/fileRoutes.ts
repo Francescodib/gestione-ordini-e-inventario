@@ -82,7 +82,7 @@ router.post('/products/:productId/images',
         isPrimary: primaryFlags
       });
 
-      logUtils.logUserAction(req.user!.userId, 'upload_product_images', {
+      logUtils.logUserAction(req.user!.userId.toString(), 'upload_product_images', {
         productId,
         imageCount: uploadResult.length
       });
@@ -164,7 +164,7 @@ router.delete('/products/images/:imageId',
 
       await FileService.deleteProductImage(imageId);
 
-      logUtils.logUserAction(req.user!.userId, 'delete_product_image', {
+      logUtils.logUserAction(req.user!.userId.toString(), 'delete_product_image', {
         imageId
       });
 
@@ -212,7 +212,7 @@ router.put('/products/images/:imageId/primary',
 
       await FileService.setPrimaryProductImage(imageId);
 
-      logUtils.logUserAction(req.user!.userId, 'set_primary_image', {
+      logUtils.logUserAction(req.user!.userId.toString(), 'set_primary_image', {
         imageId
       });
 
@@ -256,7 +256,7 @@ router.post('/users/:userId/avatar',
       const { userId } = req.params;
 
       // Check permissions (user can upload own avatar, or admin can upload any)
-      if (req.user?.userId !== userId && req.user?.role !== 'ADMIN') {
+      if (req.user?.userId !== parseInt(userId) && req.user?.role !== 'ADMIN') {
         return res.status(403).json({
           success: false,
           message: 'Insufficient permissions to upload avatar'
@@ -279,7 +279,7 @@ router.post('/users/:userId/avatar',
         file
       });
 
-      logUtils.logUserAction(req.user!.userId, 'upload_avatar', {
+      logUtils.logUserAction(req.user!.userId.toString(), 'upload_avatar', {
         targetUserId: userId
       });
 
@@ -351,7 +351,7 @@ router.delete('/users/:userId/avatar',
       const { userId } = req.params;
 
       // Check permissions
-      if (req.user?.userId !== userId && req.user?.role !== 'ADMIN') {
+      if (req.user?.userId !== parseInt(userId) && req.user?.role !== 'ADMIN') {
         return res.status(403).json({
           success: false,
           message: 'Insufficient permissions to delete avatar'
@@ -360,7 +360,7 @@ router.delete('/users/:userId/avatar',
 
       await FileService.deleteUserAvatar(userId);
 
-      logUtils.logUserAction(req.user!.userId, 'delete_avatar', {
+      logUtils.logUserAction(req.user!.userId.toString(), 'delete_avatar', {
         targetUserId: userId
       });
 
@@ -424,7 +424,7 @@ router.post('/documents',
         uploadResults.push(uploadResult);
       }
 
-      logUtils.logUserAction(req.user!.userId, 'upload_document', {
+      logUtils.logUserAction(req.user!.userId.toString(), 'upload_document', {
         documentCount: uploadResults.length,
         entityId,
         entityType
@@ -514,7 +514,7 @@ router.delete('/documents/:fileId',
 
       await FileService.deleteUploadedFile(fileId);
 
-      logUtils.logUserAction(req.user!.userId, 'delete_document', {
+      logUtils.logUserAction(req.user!.userId.toString(), 'delete_document', {
         fileId
       });
 
@@ -608,7 +608,7 @@ router.post('/cleanup',
 
       const deletedCount = await FileService.cleanupOrphanedFiles();
 
-      logUtils.logUserAction(req.user!.userId, 'cleanup_files', {
+      logUtils.logUserAction(req.user!.userId.toString(), 'cleanup_files', {
         deletedCount
       });
 

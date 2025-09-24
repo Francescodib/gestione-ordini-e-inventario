@@ -7,6 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { logger } from '../config/logger';
 
 export interface DirectoryConfig {
   path: string;
@@ -69,13 +70,13 @@ export const ensureDirectoryExists = async (dirPath: string): Promise<boolean> =
 
     if (!fs.existsSync(fullPath)) {
       fs.mkdirSync(fullPath, { recursive: true });
-      console.log(`📁 Created directory: ${fullPath}`);
+      logger.info(`📁 Created directory: ${fullPath}`);
       return true;
     }
 
     return false;
   } catch (error) {
-    console.error(`❌ Failed to create directory ${dirPath}:`, error);
+    logger.error(`❌ Failed to create directory ${dirPath}:`, error);
     throw error;
   }
 };
@@ -95,7 +96,7 @@ export const checkDirectoryAccess = async (dirPath: string): Promise<boolean> =>
     fs.accessSync(fullPath, fs.constants.W_OK);
     return true;
   } catch (error) {
-    console.error(`❌ Directory access check failed for ${dirPath}:`, error);
+    logger.error(`❌ Directory access check failed for ${dirPath}:`, error);
     return false;
   }
 };
@@ -104,7 +105,7 @@ export const checkDirectoryAccess = async (dirPath: string): Promise<boolean> =>
  * Setup all required directories
  */
 export const setupRequiredDirectories = async (directories: DirectoryConfig[] = DEFAULT_DIRECTORIES): Promise<void> => {
-  console.log('🚀 Setting up required directories...');
+  logger.info('🚀 Setting up required directories...');
 
   let createdCount = 0;
   let errorCount = 0;
@@ -119,26 +120,26 @@ export const setupRequiredDirectories = async (directories: DirectoryConfig[] = 
       // Verify access
       const hasAccess = await checkDirectoryAccess(dir.path);
       if (!hasAccess) {
-        console.warn(`⚠️  Directory exists but may not be writable: ${dir.path}`);
+        logger.warn(`⚠️  Directory exists but may not be writable: ${dir.path}`);
       }
 
     } catch (error) {
       errorCount++;
       if (dir.required) {
-        console.error(`❌ Failed to setup required directory: ${dir.path}`);
+        logger.error(`❌ Failed to setup required directory: ${dir.path}`);
         throw new Error(`Required directory setup failed: ${dir.path}`);
       } else {
-        console.warn(`⚠️  Optional directory setup failed: ${dir.path}`);
+        logger.warn(`⚠️  Optional directory setup failed: ${dir.path}`);
       }
     }
   }
 
-  console.log(`✅ Directory setup completed:`);
-  console.log(`   - Created: ${createdCount} directories`);
-  console.log(`   - Verified: ${directories.length - createdCount} existing directories`);
+  logger.info(`✅ Directory setup completed:`);
+  logger.info(`   - Created: ${createdCount} directories`);
+  logger.info(`   - Verified: ${directories.length - createdCount} existing directories`);
 
   if (errorCount > 0) {
-    console.warn(`   - Errors: ${errorCount} directories had issues`);
+    logger.warn(`   - Errors: ${errorCount} directories had issues`);
   }
 };
 
@@ -174,7 +175,7 @@ export const cleanupEmptyDirectories = async (directories: DirectoryConfig[]): P
         const files = fs.readdirSync(fullPath);
         if (files.length === 0) {
           fs.rmdirSync(fullPath);
-          console.log(`🗑️  Removed empty directory: ${fullPath}`);
+          logger.info(`🗑️  Removed empty directory: ${fullPath}`);
         }
       }
     } catch (error) {

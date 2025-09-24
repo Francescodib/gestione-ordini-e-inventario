@@ -530,7 +530,7 @@ router.post('/bulk/reorder',
       const failed = results.filter(r => r.status === 'rejected').length;
 
       if (userId) {
-        logUtils.logUserAction(userId, 'categories_reorder', {
+        logUtils.logUserAction(userId?.toString() || 'unknown', 'categories_reorder', {
           totalCategories: categories.length,
           successful,
           failed
@@ -595,7 +595,7 @@ router.post('/bulk/update-status',
       const failed = results.filter(r => r.status === 'rejected').length;
 
       if (userId) {
-        logUtils.logUserAction(userId, 'bulk_category_status_update', {
+        logUtils.logUserAction(userId?.toString() || 'unknown', 'bulk_category_status_update', {
           totalCategories: categoryIds.length,
           successful,
           failed,

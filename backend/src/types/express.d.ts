@@ -5,6 +5,7 @@
 
 import { JwtPayload } from 'jsonwebtoken';
 import { TokenPayload } from '../services/authService';
+import { AuthenticatedUser } from '../middleware/auth';
 
 /**
  * Dichiarazione globale per estendere l'interfaccia Request di Express
@@ -13,7 +14,7 @@ import { TokenPayload } from '../services/authService';
 declare global {
   namespace Express {
     interface Request {
-      user?: TokenPayload;     // Dati utente decodificati dal token JWT (opzionale)
+      user?: AuthenticatedUser;     // Dati utente decodificati dal token JWT (opzionale)
       requestId?: string;    // ID univoco della richiesta per il tracking
       startTime?: number;    // Timestamp di inizio richiesta per performance tracking
       userId?: string;       // ID utente estratto dal token per logging

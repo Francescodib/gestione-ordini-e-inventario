@@ -430,7 +430,6 @@ router.post('/',
  * Get inactive users (Admin/Manager only)
  */
 router.get('/inactive', verifyToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
-  console.log('🔍 Route matched: /inactive - SUCCESS!');
   try {
     const inactiveDays = req.query.days ? parseInt(req.query.days as string) : 90;
     const inactiveUsers = await UserService.getInactiveUsers(inactiveDays);
@@ -546,7 +545,6 @@ router.get('/:id',
   verifyToken,
   requireManagerOrAdmin,
   async (req: Request, res: Response) => {
-    console.log('🔍 Route matched: /:id with id =', req.params.id);
     try {
       const userId = parseIntId(req.params.id);
 
@@ -595,18 +593,11 @@ router.put('/:id',
   verifyToken,
   requireSelfOrAdmin,
   async (req: Request, res: Response) => {
-    console.log('PUT /:id route reached');
-    console.log('req.user:', req.user);
-    console.log('req.params:', req.params);
-    console.log('req.body:', req.body);
     try {
       let userData: UpdateUserRequest = req.body;
 
-      console.log('1. userData before processing:', userData);
-
       // Check for conflicts
       if (userData.email || userData.username) {
-        console.log('2. Checking conflicts...');
         const conflicts = await UserService.checkUserExists(
           userData.email,
           userData.username,
@@ -614,7 +605,6 @@ router.put('/:id',
         );
 
         if (conflicts.emailExists) {
-          console.log('3. Email conflict found');
           return res.status(400).json({
             success: false,
             message: 'Email already exists'
@@ -622,23 +612,17 @@ router.put('/:id',
         }
 
         if (conflicts.usernameExists) {
-          console.log('3. Username conflict found');
           return res.status(400).json({
             success: false,
             message: 'Username already exists'
           });
         }
       }
-
-      console.log('4. Parsing userId...');
       const userId = parseIntId(req.params.id);
-      const currentUserId = req.user.userId;
-
-      console.log('5. userId:', userId, 'currentUserId:', currentUserId);
+      const currentUserId = req.user?.userId;
 
       // Se non è admin e sta modificando il proprio profilo, rimuovi campi sensibili
-      if (req.user.role !== 'ADMIN' && currentUserId === userId) {
-        console.log('6. Filtering fields for non-admin user...');
+      if (req.user?.role !== 'ADMIN' && currentUserId === userId) {
         // Gli utenti non-admin possono modificare solo alcuni campi del proprio profilo
         const allowedFields = ['firstName', 'lastName', 'phone', 'currentPassword', 'newPassword'];
         const filteredUserData: any = {};
@@ -650,10 +634,8 @@ router.put('/:id',
         }
 
         userData = filteredUserData as UpdateUserRequest;
-        console.log('7. userData after filtering:', userData);
       }
 
-      console.log('8. Calling UserService.updateUser...');
       const updatedUser = await UserService.updateUser(userId, userData);
 
       if (!updatedUser) {

@@ -815,12 +815,6 @@ export class OrderService {
         adminUserId,
         updateData: JSON.stringify(updateData, null, 2)
       });
-      console.error('DETAILED ORDER UPDATE ERROR:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-        updateData
-      });
       throw error;
     }
   }
