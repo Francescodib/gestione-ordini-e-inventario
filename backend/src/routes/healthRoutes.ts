@@ -47,10 +47,9 @@ router.get('/', async (req: Request, res: Response) => {
  * GET /status
  * Detailed system status (alias for /health)
  */
-router.get('/status', (req: Request, res: Response) => {
-  // Forward to main health endpoint
-  req.url = '/';
-  router.handle(req, res);
+router.get('/status', async (req: Request, res: Response) => {
+  // Redirect to main health endpoint
+  res.redirect('/health');
 });
 
 export default router;

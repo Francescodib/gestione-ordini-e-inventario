@@ -5,9 +5,7 @@ import rateLimit, { RateLimitRequestHandler } from "express-rate-limit";
 import helmet, { HelmetOptions } from "helmet";
 
 export const corsOptions: CorsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? ['http://localhost:5173', 'http://localhost:3000']
-    : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+  origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Authorization", "Content-Type"],
   credentials: true,

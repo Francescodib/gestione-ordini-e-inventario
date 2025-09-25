@@ -160,8 +160,13 @@ export class AuthService {
       return this.generateToken({
         id: decoded.userId,
         email: decoded.email,
-        role: decoded.role || 'user'
-      } as User);
+        role: decoded.role || 'CLIENT',
+        password: '', // Required by UserAttributes but not used in token generation
+        username: decoded.email.split('@')[0], // Derive username from email
+        firstName: '',
+        lastName: '',
+        isActive: true
+      } as UserAttributes);
     } catch (error) {
       // Token non valido o scaduto
       return null;

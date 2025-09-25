@@ -25,7 +25,6 @@ import {
 
 // Database
 import { connectDatabase, checkDatabaseHealth, disconnectDatabase, syncModels, getDatabaseInfo } from "./config/database";
-import { createDemoUserIfNeeded } from "./scripts/createDemoUser";
 
 // Directory Setup
 import { setupRequiredDirectories } from "./utils/directorySetup";
@@ -95,8 +94,7 @@ const initializeApplication = async () => {
     // 4. Get database info for debugging
     await getDatabaseInfo();
 
-    // 5. Create demo user if needed (first run)
-    await createDemoUserIfNeeded();
+    // Demo user creation removed - managed in database seeding
 
     logger.info('✅ Application initialization completed successfully');
   } catch (error) {

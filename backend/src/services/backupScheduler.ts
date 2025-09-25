@@ -3,7 +3,7 @@
  * Service for scheduling and managing automated backups using cron jobs
  */
 
-import cron from 'node-cron';
+import * as cron from 'node-cron';
 import { logger, logUtils } from '../config/logger';
 import { BackupConfig, backupConfig } from '../config/backup';
 import { DatabaseBackupService } from './databaseBackupService';
@@ -88,7 +88,6 @@ export class BackupScheduler {
     const task = cron.schedule(this.config.database.schedule, async () => {
       await this.runDatabaseBackup();
     }, {
-      scheduled: false, // Don't start immediately
       timezone: 'Europe/Rome'
     });
     
@@ -120,7 +119,6 @@ export class BackupScheduler {
     const task = cron.schedule(this.config.files.schedule, async () => {
       await this.runFilesBackup();
     }, {
-      scheduled: false,
       timezone: 'Europe/Rome'
     });
     
@@ -148,7 +146,6 @@ export class BackupScheduler {
     const dbCleanupTask = cron.schedule('0 1 * * *', async () => {
       await this.runDatabaseCleanup();
     }, {
-      scheduled: false,
       timezone: 'Europe/Rome'
     });
     
@@ -166,7 +163,6 @@ export class BackupScheduler {
     const filesCleanupTask = cron.schedule('30 1 * * *', async () => {
       await this.runFilesCleanup();
     }, {
-      scheduled: false,
       timezone: 'Europe/Rome'
     });
     

@@ -37,17 +37,21 @@ const LoginPage: React.FC = () => {
     try {
       await login(email, password);
       navigate('/dashboard');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error details:', err);
       
       // Extract error message with fallback
       let errorMessage = 'Errore durante il login';
       
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.error) {
-        errorMessage = err.response.data.error;
-      } else if (err.message) {
+      // Type guard for axios error
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { message?: string; error?: string } } };
+        if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message;
+        } else if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error;
+        }
+      } else if (err instanceof Error) {
         errorMessage = err.message;
       }
       

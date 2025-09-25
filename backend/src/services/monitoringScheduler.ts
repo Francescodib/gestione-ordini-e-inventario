@@ -3,7 +3,7 @@
  * Service for scheduling automated monitoring tasks and metrics collection
  */
 
-import cron from 'node-cron';
+import * as cron from 'node-cron';
 import { logger } from '../config/logger';
 import { MonitoringConfig } from '../config/monitoring';
 import { SystemMonitoringService } from './systemMonitoringService';
